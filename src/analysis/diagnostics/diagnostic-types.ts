@@ -42,3 +42,4 @@ export interface DiagnosticDeltaResult {
   readonly uncertainDiagnostics: readonly DiagnosticFingerprint[];
   readonly isBaselineReady: boolean;
 }
+

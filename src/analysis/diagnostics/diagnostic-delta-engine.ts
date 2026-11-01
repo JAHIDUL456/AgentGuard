@@ -139,3 +139,4 @@ export class DiagnosticDeltaEngine implements IAnalysisEngine {
     return str.substring(0, maxLen - 3) + '...';
   }
 }
+

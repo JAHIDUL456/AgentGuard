@@ -35,3 +35,4 @@ export interface DependencyLink {
   readonly rawImport: string;
   readonly line: number;
 }
+
