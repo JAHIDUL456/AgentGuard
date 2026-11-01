@@ -159,14 +159,15 @@ export class AutoReportManager extends Disposable {
         this._logger.debug(
           `Updated automatic safety report at ${root.name}/.vscode/agentguard-report.md`
         );
-      } catch (err: any) {
+      } catch (err: unknown) {
+        const error = err as Error & { code?: string };
         if (
-          err.code === 'EACCES' ||
-          err.code === 'EPERM' ||
-          err.code === 'EROFS'
+          error.code === 'EACCES' ||
+          error.code === 'EPERM' ||
+          error.code === 'EROFS'
         ) {
           this._logger.warn(
-            `Workspace root '${root.name}' is read-only. Automatic report write skipped: ${err.message}`
+            `Workspace root '${root.name}' is read-only. Automatic report write skipped: ${error.message}`
           );
         } else {
           this._logger.warn(

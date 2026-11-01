@@ -3,7 +3,6 @@
 src/**
 test/**
 out/**
-scripts/**
 .github/**
 .gitignore
 .editorconfig

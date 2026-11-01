@@ -37,5 +37,5 @@ jobs:
         run: npm run package-prod
 
       - name: Validate VS Code Package (.vsix)
-        run: npx vsce package --no-git-tag-version --allow-missing-repository
+        run: npm run package-extension
 

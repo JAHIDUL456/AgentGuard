@@ -5,7 +5,7 @@ import { ILogger } from '../../core/logger';
 import { ConfidenceLevel, Finding, FindingCategory, FindingSeverity } from '../../core/types';
 import { GitService } from '../../git/git-service';
 import { LanguageAdapterRegistry } from '../../languages/adapter-registry';
-import { StructuralNode } from '../../languages/types';
+import { ILanguageAdapter, StructuralNode } from '../../languages/types';
 import { isIgnoredPath } from '../../utils/path-utils';
 import { WorkspaceManager } from '../../workspace/workspace-manager';
 import { DiagnosticTracker } from '../diagnostics/diagnostic-tracker';
@@ -364,7 +364,7 @@ export class BlastRadiusEngine implements IAnalysisEngine {
 
   private async _retrievePreviousNodesFromGit(
     uri: vscode.Uri,
-    adapter: any
+    adapter: ILanguageAdapter
   ): Promise<readonly StructuralNode[] | undefined> {
     try {
       const root = this._workspaceManager.getRootForUri(uri);

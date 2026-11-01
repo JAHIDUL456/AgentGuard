@@ -129,7 +129,7 @@
     "pretest": "tsc -p tsconfig.test.json",
     "test": "npm run pretest && mocha -r ./out/test/unit/setup.js --ui tdd out/test/unit/**/*.test.js",
     "test:integration": "npm run build && npm run pretest && node out/test/integration/runTest.js",
-    "package-extension": "vsce package --no-git-tag-version --allow-missing-repository"
+    "package-extension": "vsce package --no-git-tag-version"
   },
   "devDependencies": {
     "@types/mocha": "^10.0.6",
