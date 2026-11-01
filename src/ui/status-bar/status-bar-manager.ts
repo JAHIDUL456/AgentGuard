@@ -73,7 +73,11 @@ export class StatusBarManager extends Disposable {
       );
     } else {
       this._item.text = '$(shield) AgentGuard: Ready';
-      this._item.tooltip = 'AgentGuard: Codebase safe. Monitoring active.';
+      const gitDesc =
+        this._engine.gitAvailable && this._engine.gitRepoCount > 0
+          ? 'Git integration active.'
+          : 'Git fallback mode active (filesystem monitoring).';
+      this._item.tooltip = `AgentGuard: Codebase safe. Monitoring active. ${gitDesc}`;
       this._item.backgroundColor = undefined;
     }
   }

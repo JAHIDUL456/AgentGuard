@@ -54,6 +54,17 @@ suite('AgentGuard Extension Integration Test', () => {
   test('tree view provider supplies root state items', async () => {
     const children = await api.treeProvider.getChildren();
     assert.ok(children.length > 0, 'Tree provider should provide initial items');
+    if (api.workspaceManager.hasWorkspace()) {
+      assert.ok(
+        children.some(item => item.label === 'Git Status' || item.label === 'Git Integration'),
+        'Tree provider should display Git integration or fallback status'
+      );
+    } else {
+      assert.ok(
+        children.some(item => String(item.description).includes('Waiting for workspace') || item.label === 'No Workspace Open'),
+        'Tree provider should display waiting for workspace state'
+      );
+    }
   });
 
   test('engine initializes to a valid state', () => {
@@ -63,17 +74,27 @@ suite('AgentGuard Extension Integration Test', () => {
     );
   });
 
+  test('git service reports availability status', async () => {
+    const available = await api.gitService.isGitAvailable();
+    assert.strictEqual(typeof available, 'boolean');
+  });
+
   test('can execute scan command and clear findings', async () => {
     await vscode.commands.executeCommand(COMMAND_SCAN_WORKSPACE);
     const findings = api.findingManager.getAll();
     assert.strictEqual(
       findings.length,
       0,
-      'Stage 1 should have zero fake findings'
+      'Stage 2 should have zero fake findings'
     );
 
     await vscode.commands.executeCommand(COMMAND_CLEAR_FINDINGS);
     assert.strictEqual(api.findingManager.getAll().length, 0);
   });
-});
 
+  test('change monitor is enabled and can enqueue / flush batches', () => {
+    assert.strictEqual(api.changeMonitor.isEnabled(), true);
+    api.changeMonitor.clearQueue();
+    assert.strictEqual(api.changeMonitor.getPendingCount(), 0);
+  });
+});

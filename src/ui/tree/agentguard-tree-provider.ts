@@ -77,6 +77,8 @@ export class AgentGuardTreeProvider
     // Workspace is open, show status
     const engineState = this._engine.state;
     const rootCountDesc = `${roots.length} folder${roots.length === 1 ? '' : 's'}`;
+    const gitAvailable = this._engine.gitAvailable;
+    const gitRepoCount = this._engine.gitRepoCount;
 
     if (engineState === 'initializing') {
       items.push(
@@ -97,12 +99,38 @@ export class AgentGuardTreeProvider
         )
       );
     } else {
+      const modeDesc =
+        gitAvailable && gitRepoCount > 0
+          ? `Ready (${rootCountDesc} • Git)`
+          : `Ready (${rootCountDesc} • Fallback)`;
+
       items.push(
         new StatusTreeItem(
           'AgentGuard',
-          `Ready (${rootCountDesc})`,
+          modeDesc,
           new vscode.ThemeIcon('shield'),
-          'Continuous offline-first codebase protection active.'
+          gitAvailable && gitRepoCount > 0
+            ? 'Continuous offline-first codebase protection and Git monitoring active.'
+            : 'Continuous offline-first codebase protection active (Git fallback mode: filesystem and document monitoring).'
+        )
+      );
+    }
+
+    // Git Status Indicator
+    if (gitAvailable && gitRepoCount > 0) {
+      items.push(
+        new InfoTreeItem(
+          'Git Integration',
+          `Active (${gitRepoCount} repo${gitRepoCount === 1 ? '' : 's'})`,
+          new vscode.ThemeIcon('repo')
+        )
+      );
+    } else {
+      items.push(
+        new InfoTreeItem(
+          'Git Status',
+          'Fallback mode (file watcher active)',
+          new vscode.ThemeIcon('info')
         )
       );
     }
@@ -137,4 +165,3 @@ export class AgentGuardTreeProvider
     return items;
   }
 }
-

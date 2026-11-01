@@ -168,9 +168,45 @@ export class MockFileSystemWatcher {
   }
 }
 
+export class MockCancellationToken {
+  private _isCancelled = false;
+  private readonly _onCancelled = new MockEventEmitter<void>();
+
+  public get isCancellationRequested(): boolean {
+    return this._isCancelled;
+  }
+
+  public get onCancellationRequested() {
+    return this._onCancelled.event;
+  }
+
+  public _cancel(): void {
+    if (!this._isCancelled) {
+      this._isCancelled = true;
+      this._onCancelled.fire();
+    }
+  }
+}
+
+export class MockCancellationTokenSource {
+  public readonly token = new MockCancellationToken();
+
+  public cancel(): void {
+    this.token._cancel();
+  }
+
+  public dispose(): void {
+    // no-op
+  }
+}
+
 // Global state for mock
 const onDidChangeWorkspaceFoldersEmitter = new MockEventEmitter<unknown>();
 const onDidSaveTextDocumentEmitter = new MockEventEmitter<unknown>();
+const onDidChangeTextDocumentEmitter = new MockEventEmitter<unknown>();
+const onDidRenameFilesEmitter = new MockEventEmitter<unknown>();
+const onDidCreateFilesEmitter = new MockEventEmitter<unknown>();
+const onDidDeleteFilesEmitter = new MockEventEmitter<unknown>();
 const onDidChangeConfigurationEmitter = new MockEventEmitter<unknown>();
 
 export const mockVscode = {
@@ -183,6 +219,7 @@ export const mockVscode = {
   TreeItem: MockTreeItem,
   TreeItemCollapsibleState: MockTreeItemCollapsibleState,
   StatusBarAlignment: MockStatusBarAlignment,
+  CancellationTokenSource: MockCancellationTokenSource,
   ProgressLocation: {
     Notification: 15,
   },
@@ -192,6 +229,14 @@ export const mockVscode = {
     _fireDidChangeWorkspaceFolders: (data: unknown) => onDidChangeWorkspaceFoldersEmitter.fire(data),
     onDidSaveTextDocument: onDidSaveTextDocumentEmitter.event,
     _fireDidSaveTextDocument: (data: unknown) => onDidSaveTextDocumentEmitter.fire(data),
+    onDidChangeTextDocument: onDidChangeTextDocumentEmitter.event,
+    _fireDidChangeTextDocument: (data: unknown) => onDidChangeTextDocumentEmitter.fire(data),
+    onDidRenameFiles: onDidRenameFilesEmitter.event,
+    _fireDidRenameFiles: (data: unknown) => onDidRenameFilesEmitter.fire(data),
+    onDidCreateFiles: onDidCreateFilesEmitter.event,
+    _fireDidCreateFiles: (data: unknown) => onDidCreateFilesEmitter.fire(data),
+    onDidDeleteFiles: onDidDeleteFilesEmitter.event,
+    _fireDidDeleteFiles: (data: unknown) => onDidDeleteFilesEmitter.fire(data),
     onDidChangeConfiguration: onDidChangeConfigurationEmitter.event,
     _fireDidChangeConfiguration: (data: unknown) => onDidChangeConfigurationEmitter.fire(data),
     createFileSystemWatcher: (_glob: string) => new MockFileSystemWatcher(),

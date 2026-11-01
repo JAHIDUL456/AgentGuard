@@ -1,32 +1,43 @@
 import * as vscode from 'vscode';
 import { Disposable } from '../core/disposable';
 import { ILogger } from '../core/logger';
-import { debounce, DebouncedFunction } from '../utils/debounce';
-import { isIgnoredPath } from '../utils/path-utils';
-import { ChangeKind, FileChangeEvent, IChangeMonitor } from './types';
-
-const DEFAULT_DEBOUNCE_MS = 300;
+import { ChangeProcessor, ProcessorOptions } from './change-processor';
+import { FileFilter } from './file-filter';
+import {
+  ChangeBatch,
+  ChangeKind,
+  EventSource,
+  FileChangeEvent,
+  IChangeMonitor,
+} from './types';
 
 export class ChangeMonitor extends Disposable implements IChangeMonitor {
   private _enabled = true;
-  private readonly _queuedChanges = new Map<string, FileChangeEvent>();
-  private readonly _debouncedFlush: DebouncedFunction<[]>;
+  private readonly _processor: ChangeProcessor;
+
   private readonly _onDidChangeFiles = this._register(
     new vscode.EventEmitter<readonly FileChangeEvent[]>()
   );
-
   public readonly onDidChangeFiles: vscode.Event<readonly FileChangeEvent[]> =
     this._onDidChangeFiles.event;
 
+  public readonly onDidBatchReady: vscode.Event<ChangeBatch>;
+
   constructor(
     private readonly _logger: ILogger,
-    debounceMs: number = DEFAULT_DEBOUNCE_MS
+    options: ProcessorOptions = {}
   ) {
     super();
 
-    this._debouncedFlush = debounce(() => {
-      this._flush();
-    }, debounceMs);
+    this._processor = this._register(new ChangeProcessor(this._logger, options));
+    this.onDidBatchReady = this._processor.onDidBatchReady;
+
+    // Bridge batch events to onDidChangeFiles for backwards compatibility
+    this._register(
+      this._processor.onDidBatchReady(batch => {
+        this._onDidChangeFiles.fire(batch.events);
+      })
+    );
 
     this._setupWatchers();
   }
@@ -37,8 +48,7 @@ export class ChangeMonitor extends Disposable implements IChangeMonitor {
     }
     this._enabled = enabled;
     if (!enabled) {
-      this._debouncedFlush.cancel();
-      this._queuedChanges.clear();
+      this._processor.clear();
     }
     this._logger.info(`ChangeMonitor ${enabled ? 'enabled' : 'disabled'}`);
   }
@@ -47,77 +57,156 @@ export class ChangeMonitor extends Disposable implements IChangeMonitor {
     return this._enabled;
   }
 
-  public override dispose(): void {
-    this._debouncedFlush.cancel();
-    this._queuedChanges.clear();
-    super.dispose();
+  public clearQueue(): void {
+    this._processor.clear();
+  }
+
+  public getPendingCount(): number {
+    return this._processor.pendingCount;
+  }
+
+  public createJobToken(): vscode.CancellationTokenSource {
+    return this._processor.createJobToken();
+  }
+
+  public cancelActiveJob(): void {
+    this._processor.cancelActiveJob();
+  }
+
+  public flush(): ChangeBatch | undefined {
+    return this._processor.flush();
   }
 
   private _setupWatchers(): void {
-    // Watch saved documents
+    // 1. Text document in-memory modifications (human or copilot typing)
+    this._register(
+      vscode.workspace.onDidChangeTextDocument(event => {
+        if (!this._enabled || event.document.uri.scheme !== 'file') {
+          return;
+        }
+        if (event.contentChanges.length === 0) {
+          return;
+        }
+        this._handleCandidate(event.document.uri, 'modified', 'document');
+      })
+    );
+
+    // 2. Saved documents
     this._register(
       vscode.workspace.onDidSaveTextDocument(doc => {
         if (!this._enabled || doc.uri.scheme !== 'file') {
           return;
         }
-        if (isIgnoredPath(doc.uri.fsPath)) {
-          return;
-        }
-        this._enqueueChange(doc.uri, 'modified');
+        this._handleCandidate(doc.uri, 'modified', 'save');
       })
     );
 
-    // Watch general file system events
+    // 3. File rename operations
+    if (typeof vscode.workspace.onDidRenameFiles === 'function') {
+      this._register(
+        vscode.workspace.onDidRenameFiles(event => {
+          if (!this._enabled) {
+            return;
+          }
+          for (const file of event.files) {
+            if (file.newUri.scheme === 'file') {
+              this._handleCandidate(
+                file.newUri,
+                'renamed',
+                'rename',
+                file.oldUri
+              );
+            }
+          }
+        })
+      );
+    }
+
+    // 4. File creation operations (via explorer)
+    if (typeof vscode.workspace.onDidCreateFiles === 'function') {
+      this._register(
+        vscode.workspace.onDidCreateFiles(event => {
+          if (!this._enabled) {
+            return;
+          }
+          for (const uri of event.files) {
+            if (uri.scheme === 'file') {
+              this._handleCandidate(uri, 'created', 'workspace');
+            }
+          }
+        })
+      );
+    }
+
+    // 5. File deletion operations (via explorer)
+    if (typeof vscode.workspace.onDidDeleteFiles === 'function') {
+      this._register(
+        vscode.workspace.onDidDeleteFiles(event => {
+          if (!this._enabled) {
+            return;
+          }
+          for (const uri of event.files) {
+            if (uri.scheme === 'file') {
+              this._handleCandidate(uri, 'deleted', 'workspace');
+            }
+          }
+        })
+      );
+    }
+
+    // 6. External file system modifications (AI coding tools, terminal scripts, git checkout)
     const watcher = this._register(
       vscode.workspace.createFileSystemWatcher('**/*')
     );
 
     this._register(
       watcher.onDidCreate(uri => {
-        if (!this._enabled || isIgnoredPath(uri.fsPath)) {
+        if (!this._enabled || uri.scheme !== 'file') {
           return;
         }
-        this._enqueueChange(uri, 'created');
+        this._handleCandidate(uri, 'created', 'watcher');
       })
     );
 
     this._register(
       watcher.onDidChange(uri => {
-        if (!this._enabled || isIgnoredPath(uri.fsPath)) {
+        if (!this._enabled || uri.scheme !== 'file') {
           return;
         }
-        this._enqueueChange(uri, 'modified');
+        this._handleCandidate(uri, 'modified', 'watcher');
       })
     );
 
     this._register(
       watcher.onDidDelete(uri => {
-        if (!this._enabled || isIgnoredPath(uri.fsPath)) {
+        if (!this._enabled || uri.scheme !== 'file') {
           return;
         }
-        this._enqueueChange(uri, 'deleted');
+        this._handleCandidate(uri, 'deleted', 'watcher');
       })
     );
   }
 
-  private _enqueueChange(uri: vscode.Uri, kind: ChangeKind): void {
-    const key = uri.toString();
-    this._queuedChanges.set(key, {
+  private _handleCandidate(
+    uri: vscode.Uri,
+    kind: ChangeKind,
+    source: EventSource,
+    oldUri?: vscode.Uri
+  ): void {
+    if (FileFilter.shouldIgnore(uri.fsPath)) {
+      return;
+    }
+
+    if (oldUri && FileFilter.shouldIgnore(oldUri.fsPath)) {
+      oldUri = undefined;
+    }
+
+    this._processor.enqueue({
       uri,
       kind,
       timestamp: Date.now(),
+      source,
+      oldUri,
     });
-    this._debouncedFlush();
-  }
-
-  private _flush(): void {
-    if (!this._enabled || this._queuedChanges.size === 0) {
-      return;
-    }
-    const events = Array.from(this._queuedChanges.values());
-    this._queuedChanges.clear();
-    this._logger.debug(`Batched ${events.length} file change events`);
-    this._onDidChangeFiles.fire(events);
   }
 }
-

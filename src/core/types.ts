@@ -38,5 +38,7 @@ export interface EngineStatus {
   readonly activeWorkspaceFolders: number;
   readonly findingCount: number;
   readonly lastScanTimestamp?: number;
+  readonly gitAvailable: boolean;
+  readonly gitRepoCount: number;
 }
 

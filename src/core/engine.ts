@@ -5,6 +5,7 @@ import { FindingManager } from '../findings/finding-manager';
 import { GitService } from '../git/git-service';
 import { LanguageAdapterRegistry } from '../languages/adapter-registry';
 import { ChangeMonitor } from '../monitoring/change-monitor';
+import { ChangeBatch } from '../monitoring/types';
 import { WorkspaceManager } from '../workspace/workspace-manager';
 import { Disposable } from './disposable';
 import { ILogger } from './logger';
@@ -13,6 +14,9 @@ import { EngineState, EngineStatus, Finding } from './types';
 export class AgentGuardEngine extends Disposable {
   private _state: EngineState = 'uninitialized';
   private _lastScanTimestamp: number | undefined;
+  private _gitAvailable = false;
+  private _gitRepoCount = 0;
+  private _activeScanTokenSource: vscode.CancellationTokenSource | undefined;
 
   private readonly _onDidChangeState = this._register(
     new vscode.EventEmitter<EngineState>()
@@ -47,13 +51,10 @@ export class AgentGuardEngine extends Disposable {
       })
     );
 
-    // Listen for file changes from ChangeMonitor
+    // Listen for incremental change batches from ChangeMonitor
     this._register(
-      this._changeMonitor.onDidChangeFiles(events => {
-        this._logger.debug(
-          `Received ${events.length} change events from monitor`
-        );
-        // Foundation hook for incremental analysis in Stage 2+
+      this._changeMonitor.onDidBatchReady(batch => {
+        this._handleIncrementalChangeBatch(batch);
       })
     );
   }
@@ -62,12 +63,22 @@ export class AgentGuardEngine extends Disposable {
     return this._state;
   }
 
+  public get gitAvailable(): boolean {
+    return this._gitAvailable;
+  }
+
+  public get gitRepoCount(): number {
+    return this._gitRepoCount;
+  }
+
   public getStatus(): EngineStatus {
     return {
       state: this._state,
       activeWorkspaceFolders: this._workspaceManager.getRoots().length,
       findingCount: this._findingManager.getAll().length,
       lastScanTimestamp: this._lastScanTimestamp,
+      gitAvailable: this._gitAvailable,
+      gitRepoCount: this._gitRepoCount,
     };
   }
 
@@ -82,14 +93,41 @@ export class AgentGuardEngine extends Disposable {
     await this._checkGitRoots();
 
     this._setState('ready');
-    this._logger.info('AgentGuard engine ready. Codebase monitoring active.');
+    if (!this._gitAvailable || this._gitRepoCount === 0) {
+      this._logger.info(
+        'AgentGuard engine ready. Running in fallback mode (direct file and language monitoring active).'
+      );
+    } else {
+      this._logger.info(
+        `AgentGuard engine ready. Codebase monitoring and Git integration active (${this._gitRepoCount} repo(s)).`
+      );
+    }
   }
 
   public async scanWorkspace(
-    targetScope?: AnalysisScope
+    targetScope?: AnalysisScope,
+    cancellationToken?: vscode.CancellationToken
   ): Promise<readonly Finding[]> {
     if (this._state === 'disposed') {
       return [];
+    }
+
+    // Cancel any previous in-flight scan
+    if (this._activeScanTokenSource) {
+      this._activeScanTokenSource.cancel();
+      this._activeScanTokenSource.dispose();
+      this._activeScanTokenSource = undefined;
+    }
+
+    const tokenSource = new vscode.CancellationTokenSource();
+    this._activeScanTokenSource = tokenSource;
+
+    // Link cancellation token if provided
+    let linkedRegistration: vscode.Disposable | undefined;
+    if (cancellationToken) {
+      linkedRegistration = cancellationToken.onCancellationRequested(() => {
+        tokenSource.cancel();
+      });
     }
 
     const previousState = this._state;
@@ -102,6 +140,11 @@ export class AgentGuardEngine extends Disposable {
         workspaceRoots: roots,
       };
 
+      // If Git is available, refresh Git statuses for roots
+      if (this._gitAvailable && this._gitRepoCount > 0) {
+        await this._gitService.getAllStatuses(tokenSource.token);
+      }
+
       const engines = this._analysisRegistry.getEngines();
       this._logger.debug(
         `Executing ${engines.length} registered analysis engine(s)`
@@ -110,8 +153,13 @@ export class AgentGuardEngine extends Disposable {
       const allFindings: Finding[] = [];
 
       for (const engine of engines) {
+        if (tokenSource.token.isCancellationRequested) {
+          this._logger.info('Safety scan cancelled.');
+          break;
+        }
+
         try {
-          const findings = await engine.analyze(scope);
+          const findings = await engine.analyze(scope, tokenSource.token);
           this._findingManager.setFindings(engine.id, findings);
           allFindings.push(...findings);
         } catch (err) {
@@ -122,14 +170,23 @@ export class AgentGuardEngine extends Disposable {
         }
       }
 
-      this._lastScanTimestamp = Date.now();
-      this._onDidScanComplete.fire(allFindings);
-      this._logger.info(
-        `Safety scan complete. Total findings: ${allFindings.length}`
-      );
+      if (!tokenSource.token.isCancellationRequested) {
+        this._lastScanTimestamp = Date.now();
+        this._onDidScanComplete.fire(allFindings);
+        this._logger.info(
+          `Safety scan complete. Total findings: ${allFindings.length}`
+        );
+      }
 
       return allFindings;
     } finally {
+      if (linkedRegistration) {
+        linkedRegistration.dispose();
+      }
+      if (this._activeScanTokenSource === tokenSource) {
+        this._activeScanTokenSource.dispose();
+        this._activeScanTokenSource = undefined;
+      }
       if (!this._disposables.isDisposed) {
         this._setState('ready');
       }
@@ -137,6 +194,11 @@ export class AgentGuardEngine extends Disposable {
   }
 
   public override dispose(): void {
+    if (this._activeScanTokenSource) {
+      this._activeScanTokenSource.cancel();
+      this._activeScanTokenSource.dispose();
+      this._activeScanTokenSource = undefined;
+    }
     this._setState('disposed');
     this._logger.info('AgentGuard engine disposed.');
     super.dispose();
@@ -151,10 +213,34 @@ export class AgentGuardEngine extends Disposable {
   }
 
   private async _checkGitRoots(): Promise<void> {
-    for (const root of this._workspaceManager.getRoots()) {
-      const info = await this._gitService.getRepositoryInfo(root.uri);
-      if (info) {
-        this._logger.debug(`Root '${root.name}' is a valid Git repository`);
+    this._gitAvailable = await this._gitService.isGitAvailable();
+    let count = 0;
+
+    if (this._gitAvailable) {
+      for (const root of this._workspaceManager.getRoots()) {
+        const isRepo = await this._gitService.isGitRepository(root.uri);
+        if (isRepo) {
+          count++;
+          this._logger.debug(`Root '${root.name}' is a valid Git repository`);
+        }
+      }
+    }
+
+    this._gitRepoCount = count;
+  }
+
+  private _handleIncrementalChangeBatch(batch: ChangeBatch): void {
+    this._logger.debug(
+      `Incremental cycle: ${batch.events.length} change(s) across ${batch.affectedUris.length} file(s)`
+    );
+
+    // Invalidate Git status cache for workspace roots containing affected files
+    if (this._gitAvailable) {
+      for (const uri of batch.affectedUris) {
+        const root = this._workspaceManager.getRootForUri(uri);
+        if (root) {
+          this._gitService.invalidateCache(root.uri);
+        }
       }
     }
   }

@@ -90,10 +90,11 @@ suite('Status Bar & Tree Provider UI', () => {
     });
 
     const rootItems = await treeProvider.getChildren();
-    assert.ok(rootItems.length >= 2);
+    assert.ok(rootItems.length >= 3);
     const firstDesc = String(rootItems[0]?.description ?? '');
     assert.ok(firstDesc.includes('Ready'));
-    assert.strictEqual(rootItems[1]?.label, 'No Risks Detected');
+    assert.ok(rootItems.some(item => item.label === 'Git Status' || item.label === 'Git Integration'));
+    assert.ok(rootItems.some(item => item.label === 'No Risks Detected'));
     assert.ok(statusBar.item.text.includes('Ready'));
   });
 });
