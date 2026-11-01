@@ -17,6 +17,7 @@ import {
 } from './watchdog-types';
 
 export class LogicWatchdogEngine implements IAnalysisEngine {
+  public static readonly MAX_FILE_SIZE_BYTES = 2 * 1024 * 1024; // 2MB safety threshold
   public readonly id = 'agentguard.logic-watchdog';
   public readonly name = 'Critical Logic & Safety Watchdog';
   public readonly category: FindingCategory = 'logic-risk';
@@ -77,6 +78,11 @@ export class LogicWatchdogEngine implements IAnalysisEngine {
 
       let newContent: string;
       try {
+        const stat = await fs.promises.stat(changedUri.fsPath);
+        if (stat.size > LogicWatchdogEngine.MAX_FILE_SIZE_BYTES) {
+          this._logger.debug(`Skipping large file > 2MB: ${changedUri.fsPath}`);
+          continue;
+        }
         newContent = await fs.promises.readFile(changedUri.fsPath, 'utf8');
       } catch {
         continue;
@@ -91,11 +97,19 @@ export class LogicWatchdogEngine implements IAnalysisEngine {
       // Update cache with new content for next analysis cycle
       this._previousContentCache.set(changedUri.fsPath, newContent);
 
+      // Fast path: if content is unchanged, skip AST/rule processing
+      if (oldContent === newContent) {
+        continue;
+      }
+
       const adapter = this._languageRegistry.getAdapterForUri(changedUri);
       const languageId = adapter ? adapter.id : 'unknown';
 
       // Compute line-level diff
       const { removedLines, addedLines } = this._computeLineDiff(oldContent, newContent);
+      if (removedLines.length === 0 && addedLines.length === 0) {
+        continue;
+      }
 
       const relPath = path
         .relative(root.uri.fsPath, changedUri.fsPath)

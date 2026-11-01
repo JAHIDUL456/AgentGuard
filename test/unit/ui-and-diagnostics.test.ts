@@ -407,3 +407,4 @@ suite('Stage 6: Professional Native VS Code UI & Finding Manager', () => {
     findingManager.dispose();
   });
 });
+

@@ -20,8 +20,9 @@ export const IGNORED_DIRECTORY_NAMES = new Set([
 ]);
 
 const REPORT_FILE_PATTERNS = [
-  /^agentguard[-_]report.*\.md$/i,
-  /^agentguard[-_]safety[-_]report.*\.md$/i,
+  /^agentguard[-_]report.*\.(md|tmp)$/i,
+  /^agentguard[-_]safety[-_]report.*\.(md|tmp)$/i,
+  /^\.?agentguard[-_]report.*\.(md|tmp)$/i,
   /^\.agentguard.*$/i,
 ];
 
@@ -38,7 +39,7 @@ export class FileFilter {
    *
    * Rules:
    * - Ignores standard build, cache, dependency directories.
-   * - Ignores AgentGuard self-generated reports to prevent feedback loops.
+   * - Ignores AgentGuard self-generated reports and caches to prevent feedback loops.
    * - Does NOT ignore .vscode folder contents (e.g. settings.json, tasks.json).
    */
   public static shouldIgnore(filePath: string): boolean {

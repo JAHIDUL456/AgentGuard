@@ -11,6 +11,7 @@ import { NativeDiagnosticsPublisher } from './findings/native-diagnostics';
 import { GitService } from './git/git-service';
 import { LanguageAdapterRegistry } from './languages/adapter-registry';
 import { ChangeMonitor } from './monitoring/change-monitor';
+import { AutoReportManager } from './reporting/auto-reporter';
 import { MarkdownReporter } from './reporting/markdown-reporter';
 import { CommandHandler } from './ui/commands/command-handler';
 import { StatusBarManager } from './ui/status-bar/status-bar-manager';
@@ -30,6 +31,8 @@ export interface AgentGuardApi {
   readonly blastRadiusEngine: BlastRadiusEngine;
   readonly logicWatchdogEngine: LogicWatchdogEngine;
   readonly nativeDiagnosticsPublisher: NativeDiagnosticsPublisher;
+  readonly autoReporter: AutoReportManager;
+  readonly markdownReporter: MarkdownReporter;
   readonly treeProvider: AgentGuardTreeProvider;
   readonly statusBarManager: StatusBarManager;
   readonly logger: ILogger;
@@ -140,6 +143,16 @@ export async function activate(
 
   // Reporting & Commands
   const markdownReporter = new MarkdownReporter();
+  const autoReporter = new AutoReportManager(
+    engine,
+    workspaceManager,
+    findingManager,
+    languageRegistry,
+    markdownReporter,
+    logger
+  );
+  context.subscriptions.push(autoReporter);
+
   const commandHandler = new CommandHandler(
     engine,
     workspaceManager,
@@ -189,6 +202,8 @@ export async function activate(
     blastRadiusEngine,
     logicWatchdogEngine,
     nativeDiagnosticsPublisher,
+    autoReporter,
+    markdownReporter,
     treeProvider,
     statusBarManager,
     logger,

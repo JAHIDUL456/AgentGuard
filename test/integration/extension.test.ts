@@ -139,4 +139,9 @@ suite('AgentGuard Extension Integration Test', () => {
     assert.ok(api.statusBarManager, 'StatusBarManager should be exposed on API');
     assert.ok(api.statusBarManager.item, 'StatusBarManager should manage StatusBarItem');
   });
+
+  test('Stage 7: exposes AutoReportManager and MarkdownReporter on API', () => {
+    assert.ok(api.autoReporter, 'AutoReportManager should be exposed on API');
+    assert.ok(api.markdownReporter, 'MarkdownReporter should be exposed on API');
+  });
 });

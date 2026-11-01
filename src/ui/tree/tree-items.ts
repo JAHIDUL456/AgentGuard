@@ -137,7 +137,7 @@ function getSeverityIcon(severity: FindingSeverity): vscode.ThemeIcon {
   }
 }
 
-function formatCapabilityLevel(level: CapabilityLevel): string {
+export function formatCapabilityLevel(level: CapabilityLevel): string {
   switch (level) {
     case CapabilityLevel.Level1_ChangeMonitoring:
       return 'Change Monitoring';

@@ -15,6 +15,7 @@ import { DependencyGraph } from './dependency-graph';
 import { StructuralDiffer } from './structural-differ';
 
 export class BlastRadiusEngine implements IAnalysisEngine {
+  public static readonly MAX_FILE_SIZE_BYTES = 2 * 1024 * 1024; // 2MB safety threshold
   public readonly id = 'agentguard.blast-radius';
   public readonly name = 'Blast Radius Analysis Engine';
   public readonly category: FindingCategory = 'potentially-affected-dependency';
@@ -79,6 +80,11 @@ export class BlastRadiusEngine implements IAnalysisEngine {
 
       let currentContent: string;
       try {
+        const stat = await fs.promises.stat(changedUri.fsPath);
+        if (stat.size > BlastRadiusEngine.MAX_FILE_SIZE_BYTES) {
+          this._logger.debug(`Skipping large file > 2MB: ${changedUri.fsPath}`);
+          continue;
+        }
         currentContent = await fs.promises.readFile(changedUri.fsPath, 'utf8');
       } catch {
         continue;

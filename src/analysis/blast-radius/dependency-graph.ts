@@ -10,6 +10,8 @@ import { DependencyLink } from './blast-types';
 export class DependencyGraph {
   // Map consumer Uri string -> DependencyLink[]
   private readonly _consumerLinks = new Map<string, DependencyLink[]>();
+  // Module resolution cache to avoid redundant stat probes on untouched consumer files
+  private readonly _resolutionCache = new Map<string, vscode.Uri | undefined>();
 
   constructor(
     private readonly _workspaceManager: WorkspaceManager,
@@ -22,6 +24,7 @@ export class DependencyGraph {
    */
   public clear(): void {
     this._consumerLinks.clear();
+    this._resolutionCache.clear();
   }
 
   /**
@@ -131,6 +134,25 @@ export class DependencyGraph {
    * Resolves a raw import string to a concrete workspace file URI if possible.
    */
   private _resolveModuleUri(
+    consumerUri: vscode.Uri,
+    rawImport: string,
+    workspaceRootUri: vscode.Uri
+  ): vscode.Uri | undefined {
+    const cacheKey = `${consumerUri.fsPath}::${rawImport}`;
+    if (this._resolutionCache.has(cacheKey)) {
+      return this._resolutionCache.get(cacheKey);
+    }
+
+    const resolved = this._doResolveModuleUri(
+      consumerUri,
+      rawImport,
+      workspaceRootUri
+    );
+    this._resolutionCache.set(cacheKey, resolved);
+    return resolved;
+  }
+
+  private _doResolveModuleUri(
     consumerUri: vscode.Uri,
     rawImport: string,
     workspaceRootUri: vscode.Uri

@@ -358,6 +358,7 @@ export const mockVscode = {
     getConfiguration: (_section?: string) => ({
       get: <T>(_key: string, defaultValue?: T): T => defaultValue as T,
     }),
+    findFiles: async (_include: any, _exclude?: any, _maxResults?: number, _token?: any) => [] as MockUri[],
     fs: {
       stat: async (uri: MockUri) => {
         const fsMod = require('fs');

@@ -9,7 +9,10 @@ import { GitRepoState, GitStatusResult, IGitService } from './types';
 export class GitService extends Disposable implements IGitService {
   private readonly _client: GitClient;
   private readonly _statusCache = new Map<string, GitStatusResult>();
+  private readonly _statusCacheTimestamps = new Map<string, number>();
   private readonly _repoRoots = new Map<string, string>(); // workspaceUri string -> git repo root path
+
+  private static readonly STATUS_CACHE_TTL_MS = 2000;
 
   private readonly _onDidChangeGitStatus = this._register(
     new vscode.EventEmitter<ReadonlyMap<string, GitStatusResult>>()
@@ -44,8 +47,19 @@ export class GitService extends Disposable implements IGitService {
 
   public async getStatusForRoot(
     uri: vscode.Uri,
-    token?: vscode.CancellationToken
+    token?: vscode.CancellationToken,
+    forceRefresh = false
   ): Promise<GitStatusResult | undefined> {
+    const key = uri.toString();
+    const now = Date.now();
+    if (!forceRefresh) {
+      const cached = this._statusCache.get(key);
+      const cachedTime = this._statusCacheTimestamps.get(key);
+      if (cached && cachedTime && (now - cachedTime < GitService.STATUS_CACHE_TTL_MS)) {
+        return cached;
+      }
+    }
+
     const repoRoot = await this._resolveRepoRoot(uri);
     if (!repoRoot) {
       return undefined;
@@ -53,7 +67,8 @@ export class GitService extends Disposable implements IGitService {
 
     try {
       const result = await this._client.getStatus(repoRoot, token);
-      this._statusCache.set(uri.toString(), result);
+      this._statusCache.set(key, result);
+      this._statusCacheTimestamps.set(key, now);
       return result;
     } catch (err) {
       this._logger.warn(
@@ -102,9 +117,11 @@ export class GitService extends Disposable implements IGitService {
   public invalidateCache(uri?: vscode.Uri): void {
     if (uri) {
       this._statusCache.delete(uri.toString());
+      this._statusCacheTimestamps.delete(uri.toString());
       this._repoRoots.delete(uri.toString());
     } else {
       this._statusCache.clear();
+      this._statusCacheTimestamps.clear();
       this._repoRoots.clear();
     }
   }
@@ -113,12 +130,12 @@ export class GitService extends Disposable implements IGitService {
     const key = uri.toString();
     const cached = this._repoRoots.get(key);
     if (cached !== undefined) {
-      return cached;
+      return cached || undefined;
     }
 
     const detected = await this._client.detectRepositoryRoot(uri.fsPath);
+    this._repoRoots.set(key, detected ?? '');
     if (detected) {
-      this._repoRoots.set(key, detected);
       this._logger.debug(`Mapped workspace ${uri.fsPath} to Git root ${detected}`);
     }
     return detected;
