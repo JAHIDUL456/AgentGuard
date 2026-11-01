@@ -29,6 +29,49 @@ export class FindingManager extends Disposable implements IFindingManager {
     this._onDidChangeFindings.fire(this.getAll());
   }
 
+  public addFinding(finding: Finding): void {
+    let engineMap = this._findingsByEngine.get(finding.sourceEngine);
+    if (!engineMap) {
+      engineMap = new Map<string, Finding>();
+      this._findingsByEngine.set(finding.sourceEngine, engineMap);
+    }
+    engineMap.set(finding.id, finding);
+    this._onDidChangeFindings.fire(this.getAll());
+  }
+
+  public updateFinding(finding: Finding): void {
+    this.addFinding(finding);
+  }
+
+  public removeFinding(id: string): void {
+    let removed = false;
+    for (const map of this._findingsByEngine.values()) {
+      if (map.delete(id)) {
+        removed = true;
+      }
+    }
+    if (removed) {
+      this._onDidChangeFindings.fire(this.getAll());
+    }
+  }
+
+  public removeFindingsForUri(uri: vscode.Uri): void {
+    let removed = false;
+    const targetPath = uri.fsPath;
+    for (const map of this._findingsByEngine.values()) {
+      for (const [id, finding] of map) {
+        if (finding.location.uri.fsPath === targetPath) {
+          map.delete(id);
+          removed = true;
+        }
+      }
+    }
+    if (removed) {
+      this._logger.debug(`Removed stale findings for file: ${uri.fsPath}`);
+      this._onDidChangeFindings.fire(this.getAll());
+    }
+  }
+
   public clear(): void {
     if (this._findingsByEngine.size === 0) {
       return;
@@ -45,6 +88,26 @@ export class FindingManager extends Disposable implements IFindingManager {
     }
   }
 
+  public clearByWorkspace(rootUri: vscode.Uri): void {
+    let removed = false;
+    const rootPath = rootUri.fsPath;
+    for (const map of this._findingsByEngine.values()) {
+      for (const [id, finding] of map) {
+        if (
+          finding.location.workspaceRootUri?.fsPath === rootPath ||
+          finding.location.uri.fsPath.startsWith(rootPath)
+        ) {
+          map.delete(id);
+          removed = true;
+        }
+      }
+    }
+    if (removed) {
+      this._logger.debug(`Cleared findings for workspace: ${rootPath}`);
+      this._onDidChangeFindings.fire(this.getAll());
+    }
+  }
+
   public getAll(): readonly Finding[] {
     const all: Finding[] = [];
     for (const map of this._findingsByEngine.values()) {
@@ -52,7 +115,11 @@ export class FindingManager extends Disposable implements IFindingManager {
         all.push(finding);
       }
     }
-    return all;
+    return this._deduplicate(all);
+  }
+
+  public getFindingsForUri(uri: vscode.Uri): readonly Finding[] {
+    return this.getAll().filter(f => f.location.uri.fsPath === uri.fsPath);
   }
 
   public filter(filter: FindingFilter): readonly Finding[] {
@@ -64,6 +131,12 @@ export class FindingManager extends Disposable implements IFindingManager {
         return false;
       }
       if (filter.filePath && f.location.filePath !== filter.filePath) {
+        return false;
+      }
+      if (
+        filter.workspaceRootUri &&
+        f.location.workspaceRootUri?.fsPath !== filter.workspaceRootUri.fsPath
+      ) {
         return false;
       }
       return true;
@@ -106,6 +179,51 @@ export class FindingManager extends Disposable implements IFindingManager {
       infos,
       byCategory,
     };
+  }
+
+  private _deduplicate(findings: readonly Finding[]): readonly Finding[] {
+    const deduplicated = new Map<string, Finding>();
+
+    for (const finding of findings) {
+      const lineKey = finding.location.range
+        ? `${finding.location.range.start.line}:${finding.location.range.start.character}`
+        : 'file-level';
+      const topic = this._normalizeTopic(finding);
+      const dedupeKey = `${finding.location.uri.fsPath}::${lineKey}::${topic}`;
+
+      const existing = deduplicated.get(dedupeKey);
+      if (!existing) {
+        deduplicated.set(dedupeKey, finding);
+      } else {
+        const existingRank = this._getFindingRank(existing);
+        const newRank = this._getFindingRank(finding);
+
+        if (newRank > existingRank) {
+          deduplicated.set(dedupeKey, finding);
+        }
+      }
+    }
+
+    return Array.from(deduplicated.values());
+  }
+
+  private _getFindingRank(finding: Finding): number {
+    const severityScore =
+      finding.severity === 'error' ? 30 : finding.severity === 'warning' ? 20 : 10;
+    const confidenceScore =
+      finding.confidence === 'high' ? 3 : finding.confidence === 'medium' ? 2 : 1;
+    return severityScore + confidenceScore;
+  }
+
+  private _normalizeTopic(finding: Finding): string {
+    if (finding.metadata?.watchdogCategory) {
+      return String(finding.metadata.watchdogCategory);
+    }
+    const titleMatch = finding.title.match(/\[([A-Z0-9_-]+)\]/i);
+    if (titleMatch && titleMatch[1]) {
+      return titleMatch[1].toLowerCase();
+    }
+    return finding.category;
   }
 
   public override dispose(): void {

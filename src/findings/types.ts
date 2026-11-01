@@ -1,9 +1,11 @@
+import * as vscode from 'vscode';
 import { Finding, FindingCategory, FindingSeverity } from '../core/types';
 
 export interface FindingFilter {
   readonly categories?: readonly FindingCategory[];
   readonly severities?: readonly FindingSeverity[];
   readonly filePath?: string;
+  readonly workspaceRootUri?: vscode.Uri;
 }
 
 export interface FindingStats {
@@ -17,9 +19,15 @@ export interface FindingStats {
 export interface IFindingManager {
   readonly onDidChangeFindings: (listener: (findings: readonly Finding[]) => unknown) => unknown;
   setFindings(sourceEngine: string, findings: readonly Finding[]): void;
+  addFinding(finding: Finding): void;
+  updateFinding(finding: Finding): void;
+  removeFinding(id: string): void;
+  removeFindingsForUri(uri: vscode.Uri): void;
   clear(): void;
   clearByEngine(engineId: string): void;
+  clearByWorkspace(rootUri: vscode.Uri): void;
   getAll(): readonly Finding[];
+  getFindingsForUri(uri: vscode.Uri): readonly Finding[];
   filter(filter: FindingFilter): readonly Finding[];
   getStats(): FindingStats;
 }

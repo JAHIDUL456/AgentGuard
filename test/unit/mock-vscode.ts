@@ -46,6 +46,14 @@ export class MockUri {
     return new MockUri('file', '', filePath);
   }
 
+  public static parse(urlString: string): MockUri {
+    const match = urlString.match(/^([a-z0-9+.-]+):\/\/([^/]*)(.*)$/i);
+    if (match) {
+      return new MockUri(match[1]!, match[2]!, match[3]!);
+    }
+    return new MockUri('file', '', urlString);
+  }
+
   public static joinPath(base: MockUri, ...pathSegments: string[]): MockUri {
     const joined = [base.path, ...pathSegments].join('/').replace(/\/+/g, '/');
     return new MockUri(base.scheme, base.authority, joined);
@@ -82,6 +90,30 @@ export class MockThemeIcon {
 
 export class MockThemeColor {
   constructor(public readonly id: string) {}
+}
+
+export class MockMarkdownString {
+  public value: string;
+  public isTrusted: boolean = false;
+
+  constructor(value: string = '') {
+    this.value = value;
+  }
+
+  public appendMarkdown(value: string): MockMarkdownString {
+    this.value += value;
+    return this;
+  }
+
+  public appendCodeblock(value: string, language?: string): MockMarkdownString {
+    this.value += `\n\`\`\`${language ?? ''}\n${value}\n\`\`\`\n`;
+    return this;
+  }
+
+  public appendText(value: string): MockMarkdownString {
+    this.value += value;
+    return this;
+  }
 }
 
 export enum MockTreeItemCollapsibleState {
@@ -232,6 +264,40 @@ export class MockDiagnostic {
   ) {}
 }
 
+export class MockLocation {
+  constructor(public readonly uri: MockUri, public readonly range: MockRange) {}
+}
+
+export class MockDiagnosticRelatedInformation {
+  constructor(public readonly location: MockLocation, public readonly message: string) {}
+}
+
+export class MockDiagnosticCollection {
+  private readonly _diagnostics = new Map<string, MockDiagnostic[]>();
+
+  constructor(public readonly name: string) {}
+
+  public set(uri: MockUri, diagnostics: MockDiagnostic[]): void {
+    this._diagnostics.set(uri.toString(), diagnostics);
+  }
+
+  public get(uri: MockUri): MockDiagnostic[] | undefined {
+    return this._diagnostics.get(uri.toString());
+  }
+
+  public delete(uri: MockUri): void {
+    this._diagnostics.delete(uri.toString());
+  }
+
+  public clear(): void {
+    this._diagnostics.clear();
+  }
+
+  public dispose(): void {
+    this._diagnostics.clear();
+  }
+}
+
 const onDidChangeWorkspaceFoldersEmitter = new MockEventEmitter<unknown>();
 const onDidSaveTextDocumentEmitter = new MockEventEmitter<unknown>();
 const onDidChangeTextDocumentEmitter = new MockEventEmitter<unknown>();
@@ -248,14 +314,18 @@ export const mockVscode = {
   Position: MockPosition,
   ThemeIcon: MockThemeIcon,
   ThemeColor: MockThemeColor,
+  MarkdownString: MockMarkdownString,
   TreeItem: MockTreeItem,
   TreeItemCollapsibleState: MockTreeItemCollapsibleState,
   StatusBarAlignment: MockStatusBarAlignment,
   CancellationTokenSource: MockCancellationTokenSource,
   DiagnosticSeverity: MockDiagnosticSeverity,
   Diagnostic: MockDiagnostic,
+  Location: MockLocation,
+  DiagnosticRelatedInformation: MockDiagnosticRelatedInformation,
   languages: {
     getDiagnostics: (_uri?: MockUri) => [] as Array<[MockUri, MockDiagnostic[]]>,
+    createDiagnosticCollection: (name?: string) => new MockDiagnosticCollection(name ?? 'default'),
     onDidChangeDiagnostics: onDidChangeDiagnosticsEmitter.event,
     _fireDidChangeDiagnostics: (data: { uris: readonly MockUri[] }) => onDidChangeDiagnosticsEmitter.fire(data),
   },

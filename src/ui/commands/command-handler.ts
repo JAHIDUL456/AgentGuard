@@ -7,6 +7,7 @@ import { MarkdownReporter } from '../../reporting/markdown-reporter';
 import { WorkspaceManager } from '../../workspace/workspace-manager';
 import {
   COMMAND_CLEAR_FINDINGS,
+  COMMAND_FOCUS_SIDEBAR,
   COMMAND_GENERATE_REPORT,
   COMMAND_SCAN_WORKSPACE,
   COMMAND_SHOW_OUTPUT,
@@ -86,6 +87,13 @@ export class CommandHandler extends Disposable {
       vscode.commands.registerCommand(COMMAND_CLEAR_FINDINGS, () => {
         this._findingManager.clear();
         vscode.window.showInformationMessage('AgentGuard: Findings cleared.');
+      })
+    );
+
+    // Focus Sidebar
+    this._register(
+      vscode.commands.registerCommand(COMMAND_FOCUS_SIDEBAR, async () => {
+        await vscode.commands.executeCommand('agentguard.findingsView.focus');
       })
     );
   }

@@ -7,6 +7,7 @@ import { LogicWatchdogEngine } from './analysis/watchdog/watchdog-engine';
 import { AgentGuardEngine } from './core/engine';
 import { ILogger, LogLevel, OutputChannelLogger } from './core/logger';
 import { FindingManager } from './findings/finding-manager';
+import { NativeDiagnosticsPublisher } from './findings/native-diagnostics';
 import { GitService } from './git/git-service';
 import { LanguageAdapterRegistry } from './languages/adapter-registry';
 import { ChangeMonitor } from './monitoring/change-monitor';
@@ -28,6 +29,7 @@ export interface AgentGuardApi {
   readonly diagnosticEngine: DiagnosticDeltaEngine;
   readonly blastRadiusEngine: BlastRadiusEngine;
   readonly logicWatchdogEngine: LogicWatchdogEngine;
+  readonly nativeDiagnosticsPublisher: NativeDiagnosticsPublisher;
   readonly treeProvider: AgentGuardTreeProvider;
   readonly statusBarManager: StatusBarManager;
   readonly logger: ILogger;
@@ -112,7 +114,8 @@ export async function activate(
   const treeProvider = new AgentGuardTreeProvider(
     engine,
     workspaceManager,
-    findingManager
+    findingManager,
+    languageRegistry
   );
   const treeView = vscode.window.createTreeView('agentguard.findingsView', {
     treeDataProvider: treeProvider,
@@ -123,9 +126,17 @@ export async function activate(
   const statusBarManager = new StatusBarManager(
     engine,
     workspaceManager,
-    findingManager
+    findingManager,
+    diagnosticTracker
   );
   context.subscriptions.push(statusBarManager);
+
+  // Native Diagnostics Publisher (publishes findings to VS Code Problems tab)
+  const nativeDiagnosticsPublisher = new NativeDiagnosticsPublisher(
+    findingManager,
+    logger
+  );
+  context.subscriptions.push(nativeDiagnosticsPublisher);
 
   // Reporting & Commands
   const markdownReporter = new MarkdownReporter();
@@ -177,6 +188,7 @@ export async function activate(
     diagnosticEngine,
     blastRadiusEngine,
     logicWatchdogEngine,
+    nativeDiagnosticsPublisher,
     treeProvider,
     statusBarManager,
     logger,

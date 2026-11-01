@@ -3,6 +3,7 @@ import * as vscode from 'vscode';
 import { AgentGuardApi } from '../../src/extension';
 import {
   COMMAND_CLEAR_FINDINGS,
+  COMMAND_FOCUS_SIDEBAR,
   COMMAND_GENERATE_REPORT,
   COMMAND_SCAN_WORKSPACE,
   COMMAND_SHOW_OUTPUT,
@@ -41,6 +42,10 @@ suite('AgentGuard Extension Integration Test', () => {
       commands.includes(COMMAND_CLEAR_FINDINGS),
       `Command ${COMMAND_CLEAR_FINDINGS} should be registered`
     );
+    assert.ok(
+      commands.includes(COMMAND_FOCUS_SIDEBAR),
+      `Command ${COMMAND_FOCUS_SIDEBAR} should be registered`
+    );
   });
 
   test('status bar manager initializes and sets text', () => {
@@ -56,8 +61,8 @@ suite('AgentGuard Extension Integration Test', () => {
     assert.ok(children.length > 0, 'Tree provider should provide initial items');
     if (api.workspaceManager.hasWorkspace()) {
       assert.ok(
-        children.some(item => item.label === 'Git Status' || item.label === 'Git Integration'),
-        'Tree provider should display Git integration or fallback status'
+        children.some(item => item.label === 'STATUS' || item.label === 'Git Status' || item.label === 'Git Integration'),
+        'Tree provider should display STATUS root section'
       );
     } else {
       assert.ok(
@@ -125,5 +130,13 @@ suite('AgentGuard Extension Integration Test', () => {
     assert.ok(api.diagnosticTracker, 'DiagnosticTracker should be available on API');
     assert.ok(api.blastRadiusEngine, 'BlastRadiusEngine should be available on API');
     assert.ok(api.logicWatchdogEngine, 'LogicWatchdogEngine should be available on API');
+  });
+
+  test('Stage 6: exposes NativeDiagnosticsPublisher and Status Bar on API', () => {
+    assert.ok(api.nativeDiagnosticsPublisher, 'NativeDiagnosticsPublisher should be exposed on API');
+    assert.ok(api.nativeDiagnosticsPublisher.collection, 'NativeDiagnosticsPublisher should have DiagnosticCollection');
+    assert.strictEqual(api.nativeDiagnosticsPublisher.collection.name, 'agentguard');
+    assert.ok(api.statusBarManager, 'StatusBarManager should be exposed on API');
+    assert.ok(api.statusBarManager.item, 'StatusBarManager should manage StatusBarItem');
   });
 });

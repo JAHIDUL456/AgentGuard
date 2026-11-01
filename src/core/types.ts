@@ -19,6 +19,8 @@ export interface FindingLocation {
   readonly filePath: string;
   readonly uri: vscode.Uri;
   readonly range?: vscode.Range;
+  readonly workspaceRootUri?: vscode.Uri;
+  readonly workspaceRootPath?: string;
 }
 
 export interface Finding {

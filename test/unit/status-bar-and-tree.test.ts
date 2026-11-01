@@ -91,10 +91,17 @@ suite('Status Bar & Tree Provider UI', () => {
 
     const rootItems = await treeProvider.getChildren();
     assert.ok(rootItems.length >= 3);
+    assert.strictEqual(rootItems[0]?.label, 'STATUS');
     const firstDesc = String(rootItems[0]?.description ?? '');
     assert.ok(firstDesc.includes('Ready'));
-    assert.ok(rootItems.some(item => item.label === 'Git Status' || item.label === 'Git Integration'));
-    assert.ok(rootItems.some(item => item.label === 'No Risks Detected'));
-    assert.ok(statusBar.item.text.includes('Ready'));
+
+    const statusChildren = await treeProvider.getChildren(rootItems[0]);
+    assert.ok(statusChildren.some(item => item.label === 'All Clear'));
+    assert.ok(
+      statusChildren.some(
+        item => item.label === 'Git Integration' || item.label === 'Monitoring Mode'
+      )
+    );
+    assert.ok(statusBar.item.text.includes('All Clear'));
   });
 });
