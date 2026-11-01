@@ -1,0 +1,131 @@
+{
+  "name": "agentguard",
+  "displayName": "AgentGuard",
+  "description": "Offline-first, zero-configuration codebase safety extension. Catches silent breaks and flags hidden logic risks automatically.",
+  "version": "0.1.0",
+  "publisher": "agentguard",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "categories": [
+    "Linters",
+    "Programming Languages",
+    "Testing"
+  ],
+  "keywords": [
+    "agentguard",
+    "codebase-safety",
+    "silent-breaks",
+    "logic-risks",
+    "ai-code-guard",
+    "offline-first"
+  ],
+  "icon": "resources/icons/agentguard-icon.png",
+  "main": "./dist/extension.js",
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "agentguard-explorer",
+          "title": "AgentGuard",
+          "icon": "resources/icons/agentguard-shield.svg"
+        }
+      ]
+    },
+    "views": {
+      "agentguard-explorer": [
+        {
+          "id": "agentguard.findingsView",
+          "name": "Codebase Safety"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "agentguard.scanWorkspace",
+        "title": "AgentGuard: Scan Workspace",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "agentguard.showOutput",
+        "title": "AgentGuard: Show Output Log",
+        "icon": "$(output)"
+      },
+      {
+        "command": "agentguard.generateReport",
+        "title": "AgentGuard: Generate Safety Report",
+        "icon": "$(report)"
+      },
+      {
+        "command": "agentguard.clearFindings",
+        "title": "AgentGuard: Clear Findings",
+        "icon": "$(clear-all)"
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "agentguard.scanWorkspace",
+          "when": "view == agentguard.findingsView",
+          "group": "navigation@1"
+        },
+        {
+          "command": "agentguard.generateReport",
+          "when": "view == agentguard.findingsView",
+          "group": "navigation@2"
+        },
+        {
+          "command": "agentguard.showOutput",
+          "when": "view == agentguard.findingsView",
+          "group": "navigation@3"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "AgentGuard",
+      "properties": {
+        "agentguard.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable or disable AgentGuard automated codebase safety monitoring."
+        },
+        "agentguard.logLevel": {
+          "type": "string",
+          "enum": [
+            "debug",
+            "info",
+            "warn",
+            "error"
+          ],
+          "default": "info",
+          "description": "Output logging verbosity."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run package-prod",
+    "compile": "tsc -p ./ --noEmit",
+    "watch": "node esbuild.js --watch",
+    "build": "node esbuild.js",
+    "package-prod": "node esbuild.js --production",
+    "pretest": "tsc -p tsconfig.test.json",
+    "test": "npm run pretest && mocha -r ./out/test/unit/setup.js --ui tdd out/test/unit/**/*.test.js",
+    "test:integration": "npm run build && npm run pretest && node out/test/integration/runTest.js",
+    "package-extension": "vsce package --no-git-tag-version --allow-missing-repository"
+  },
+  "devDependencies": {
+    "@types/mocha": "^10.0.6",
+    "@types/node": "^20.14.0",
+    "@types/vscode": "^1.90.0",
+    "@vscode/test-electron": "^2.4.0",
+    "@vscode/vsce": "^2.26.0",
+    "esbuild": "^0.21.4",
+    "mocha": "^10.4.0",
+    "typescript": "^5.4.5"
+  }
+}
