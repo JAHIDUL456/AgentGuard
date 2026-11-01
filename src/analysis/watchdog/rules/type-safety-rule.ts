@@ -78,3 +78,4 @@ export class TypeSafetyRule extends BaseWatchdogRule {
     return findings;
   }
 }
+

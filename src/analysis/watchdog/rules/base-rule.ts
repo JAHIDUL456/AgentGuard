@@ -56,3 +56,4 @@ export abstract class BaseWatchdogRule implements IWatchdogRule {
     );
   }
 }
+

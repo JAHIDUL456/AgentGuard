@@ -64,3 +64,4 @@ export class WatchdogRuleRegistry {
     return findings;
   }
 }
+

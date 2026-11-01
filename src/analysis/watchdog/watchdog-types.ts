@@ -53,3 +53,4 @@ export interface IWatchdogRule {
   readonly supportedLanguages: readonly string[];
   inspect(context: CodeChangeContext): Promise<readonly WatchdogFindingCandidate[]>;
 }
+

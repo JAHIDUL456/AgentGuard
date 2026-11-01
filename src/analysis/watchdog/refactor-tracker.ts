@@ -99,3 +99,4 @@ export class RefactorTracker {
     return false;
   }
 }
+
