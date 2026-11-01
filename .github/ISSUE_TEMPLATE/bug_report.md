@@ -39,3 +39,4 @@ Please copy relevant output from the VS Code Output Channel:
 
 ## Additional Context
 Add any other context about the problem here (e.g., whether changes were made by an AI tool like Cursor, Copilot, Claude Code, or manually).
+
