@@ -7,3 +7,4 @@ export interface ButtonProps {
 export function PrimaryButton(props: ButtonProps) {
   return <button>{props.label}</button>;
 }
+

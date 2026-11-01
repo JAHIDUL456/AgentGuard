@@ -62,3 +62,4 @@ suite('WorkspaceLanguageDetector (Multi-Language & Nested Project Detection)', (
     assert.ok(summary.detectedLanguages.some(l => l.id === 'go'));
   });
 });
+

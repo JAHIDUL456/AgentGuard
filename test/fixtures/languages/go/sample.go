@@ -18,3 +18,4 @@ func StartServer(cfg ServerConfig) error {
 	fmt.Println("Starting server on", cfg.Port)
 	return nil
 }
+

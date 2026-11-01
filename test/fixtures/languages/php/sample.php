@@ -14,3 +14,4 @@ class LoggerService {
 function initLogger(): LoggerService {
     return new LoggerService();
 }
+

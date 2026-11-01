@@ -9,3 +9,4 @@ class UserProfile {
 void loadProfile(String id) {
   print(id);
 }
+

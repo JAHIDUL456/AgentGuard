@@ -177,3 +177,4 @@ export abstract class BaseLanguageAdapter implements ILanguageAdapter {
     });
   }
 }
+

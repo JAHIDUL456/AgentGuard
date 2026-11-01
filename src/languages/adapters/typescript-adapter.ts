@@ -132,3 +132,4 @@ export class TypeScriptAdapter extends BaseLanguageAdapter {
     return res.imports;
   }
 }
+

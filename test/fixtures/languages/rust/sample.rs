@@ -18,3 +18,4 @@ pub trait Monitor {
 pub fn initialize_guard() -> GuardState {
     GuardState { count: 0 }
 }
+

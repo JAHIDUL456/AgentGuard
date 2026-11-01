@@ -9,3 +9,4 @@ struct Point {
 int add_points(struct Point a, struct Point b);
 
 #endif
+

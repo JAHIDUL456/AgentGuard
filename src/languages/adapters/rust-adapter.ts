@@ -131,3 +131,4 @@ export class RustAdapter extends BaseLanguageAdapter {
     return res.imports;
   }
 }
+

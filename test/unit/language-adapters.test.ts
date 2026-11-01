@@ -314,3 +314,4 @@ suite('Multi-Language Adapter Architecture (11 Languages)', () => {
     assert.strictEqual(tsRes.syntaxErrors.length, 0);
   });
 });
+

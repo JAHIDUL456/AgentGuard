@@ -17,3 +17,4 @@ export class UserService {
 export function getUserCount(service: UserService): number {
   return 42;
 }
+

@@ -123,3 +123,4 @@ export class GoAdapter extends BaseLanguageAdapter {
     return res.imports;
   }
 }
+
