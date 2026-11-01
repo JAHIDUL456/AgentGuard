@@ -106,4 +106,19 @@ suite('AgentGuard Extension Integration Test', () => {
     assert.ok(adapters.some(a => a.id === 'go'));
     assert.ok(adapters.some(a => a.id === 'rust'));
   });
+
+  test('registers Stage 4 analysis engines (DiagnosticDelta and BlastRadius) in extension host', () => {
+    const engines = api.analysisRegistry.getEngines();
+    assert.ok(engines.length >= 2, 'Should register at least 2 analysis engines');
+    assert.ok(
+      engines.some(e => e.id === 'agentguard.diagnostic-delta'),
+      'DiagnosticDeltaEngine should be registered'
+    );
+    assert.ok(
+      engines.some(e => e.id === 'agentguard.blast-radius'),
+      'BlastRadiusEngine should be registered'
+    );
+    assert.ok(api.diagnosticTracker, 'DiagnosticTracker should be available on API');
+    assert.ok(api.blastRadiusEngine, 'BlastRadiusEngine should be available on API');
+  });
 });

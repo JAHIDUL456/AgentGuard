@@ -32,10 +32,12 @@ export class MarkdownReporter {
       ``,
       `| Category | Count |`,
       `| --- | --- |`,
-      `| Untouched Affected Files | ${stats.byCategory['untouched-file']} |`,
-      `| Diagnostic / Syntax Regressions | ${stats.byCategory['diagnostic-regression']} |`,
+      `| Confirmed New Diagnostics | ${stats.byCategory['confirmed-new-diagnostic'] + stats.byCategory['diagnostic-regression']} |`,
+      `| Potentially Affected Dependencies | ${stats.byCategory['potentially-affected-dependency'] + stats.byCategory['untouched-file']} |`,
+      `| Potentially Broken Contracts | ${stats.byCategory['potentially-broken-contract']} |`,
+      `| Unresolved References | ${stats.byCategory['unresolved-reference'] + stats.byCategory['broken-dependency']} |`,
+      `| Analysis Incomplete | ${stats.byCategory['analysis-incomplete']} |`,
       `| Logic & Error-Handling Risks | ${stats.byCategory['logic-risk']} |`,
-      `| Broken Dependencies | ${stats.byCategory['broken-dependency']} |`,
       ``,
     ];
 
@@ -56,12 +58,14 @@ export class MarkdownReporter {
           : finding.location.filePath;
 
         lines.push(
-          `### ${i + 1}. [${finding.severity.toUpperCase()}] ${finding.title}`,
+          `### ${i + 1}. [${finding.severity.toUpperCase()}] [${finding.confidence.toUpperCase()} CONFIDENCE] ${finding.title}`,
           ``,
           `- **Category**: \`${finding.category}\``,
           `- **Location**: \`${locationStr}\``,
           `- **Source**: \`${finding.sourceEngine}\``,
           `- **Description**: ${finding.message}`,
+          `- **Evidence**: ${finding.evidence}`,
+          `- **Explanation**: ${finding.explanation}`,
           ``
         );
       }

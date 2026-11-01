@@ -76,8 +76,11 @@ suite('AgentGuardEngine', () => {
       id: 'rule-1',
       category: 'logic-risk',
       severity: 'error',
+      confidence: 'high',
       title: 'Auth guard removed',
       message: 'Authentication middleware was stripped.',
+      evidence: 'Missing checkAuth() call on line 42',
+      explanation: 'Removing authentication allows unauthorized access to protected route.',
       location: {
         filePath: '/projects/agentguard-repo/src/routes.ts',
         uri: vscode.Uri.file('/projects/agentguard-repo/src/routes.ts'),

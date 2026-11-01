@@ -18,6 +18,11 @@ suite('MarkdownReporter', () => {
         'diagnostic-regression': 0,
         'logic-risk': 0,
         'broken-dependency': 0,
+        'confirmed-new-diagnostic': 0,
+        'potentially-affected-dependency': 0,
+        'potentially-broken-contract': 0,
+        'unresolved-reference': 0,
+        'analysis-incomplete': 0,
       },
     };
 
@@ -36,8 +41,11 @@ suite('MarkdownReporter', () => {
       id: 'f-1',
       category: 'broken-dependency',
       severity: 'error',
+      confidence: 'high',
       title: 'Missing package import',
       message: 'Package was uninstalled but still imported.',
+      evidence: "Cannot resolve module 'foo' in src/index.ts:1",
+      explanation: 'Removing a dependency without cleaning up references leads to runtime failures.',
       location: {
         filePath: 'src/index.ts',
         uri: vscode.Uri.file('/app/src/index.ts'),
@@ -56,13 +64,20 @@ suite('MarkdownReporter', () => {
         'diagnostic-regression': 0,
         'logic-risk': 0,
         'broken-dependency': 1,
+        'confirmed-new-diagnostic': 0,
+        'potentially-affected-dependency': 0,
+        'potentially-broken-contract': 0,
+        'unresolved-reference': 0,
+        'analysis-incomplete': 0,
       },
     };
 
     const md = reporter.generateReport([finding], stats);
-    assert.ok(md.includes('[ERROR] Missing package import'));
+    assert.ok(md.includes('[ERROR] [HIGH CONFIDENCE] Missing package import'));
     assert.ok(md.includes('Package was uninstalled but still imported'));
     assert.ok(md.includes('src/index.ts'));
+    assert.ok(md.includes("Cannot resolve module 'foo'"));
+    assert.ok(md.includes('Removing a dependency without cleaning up references'));
   });
 });
 

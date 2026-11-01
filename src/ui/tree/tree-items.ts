@@ -35,11 +35,13 @@ export class CategoryTreeItem extends vscode.TreeItem {
 export class FindingTreeItem extends vscode.TreeItem {
   constructor(public readonly finding: Finding) {
     super(finding.title, vscode.TreeItemCollapsibleState.None);
-    this.description = finding.location.filePath;
+    this.description = `[${finding.confidence.toUpperCase()}] ${finding.location.filePath}`;
     this.iconPath = getSeverityIcon(finding.severity);
     this.tooltip = new vscode.MarkdownString(
-      `**[${finding.severity.toUpperCase()}] ${finding.title}**\n\n` +
+      `**[${finding.severity.toUpperCase()}] [${finding.confidence.toUpperCase()} CONFIDENCE] ${finding.title}**\n\n` +
       `${finding.message}\n\n` +
+      `**Evidence**: ${finding.evidence}\n\n` +
+      `**Explanation**: ${finding.explanation}\n\n` +
       `*Source: ${finding.sourceEngine}*`
     );
     this.contextValue = 'agentguard.finding';
@@ -78,6 +80,16 @@ function formatCategoryName(category: FindingCategory): string {
       return 'Logic & Error Risks';
     case 'broken-dependency':
       return 'Broken Dependencies';
+    case 'confirmed-new-diagnostic':
+      return 'Confirmed New Diagnostics';
+    case 'potentially-affected-dependency':
+      return 'Potentially Affected Dependencies';
+    case 'potentially-broken-contract':
+      return 'Potentially Broken Contracts';
+    case 'unresolved-reference':
+      return 'Unresolved References';
+    case 'analysis-incomplete':
+      return 'Analysis Incomplete';
   }
 }
 
@@ -91,6 +103,16 @@ function getCategoryIcon(category: FindingCategory): vscode.ThemeIcon {
       return new vscode.ThemeIcon('shield');
     case 'broken-dependency':
       return new vscode.ThemeIcon('references');
+    case 'confirmed-new-diagnostic':
+      return new vscode.ThemeIcon('error', new vscode.ThemeColor('errorForeground'));
+    case 'potentially-affected-dependency':
+      return new vscode.ThemeIcon('git-pull-request');
+    case 'potentially-broken-contract':
+      return new vscode.ThemeIcon('shield-x');
+    case 'unresolved-reference':
+      return new vscode.ThemeIcon('warning', new vscode.ThemeColor('problemsWarningIcon.foreground'));
+    case 'analysis-incomplete':
+      return new vscode.ThemeIcon('info');
   }
 }
 

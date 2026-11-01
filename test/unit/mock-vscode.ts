@@ -53,10 +53,23 @@ export class MockUri {
 }
 
 export class MockRange {
+  public readonly start: { line: number; character: number };
+  public readonly end: { line: number; character: number };
+
   constructor(
-    public readonly start: { line: number; character: number },
-    public readonly end: { line: number; character: number }
-  ) {}
+    startOrStartLine: { line: number; character: number } | number,
+    endOrStartChar: { line: number; character: number } | number,
+    endLine?: number,
+    endCharacter?: number
+  ) {
+    if (typeof startOrStartLine === 'number') {
+      this.start = { line: startOrStartLine, character: (endOrStartChar as number) ?? 0 };
+      this.end = { line: endLine ?? startOrStartLine, character: endCharacter ?? 0 };
+    } else {
+      this.start = startOrStartLine;
+      this.end = endOrStartChar as { line: number; character: number };
+    }
+  }
 }
 
 export class MockPosition {
@@ -200,7 +213,25 @@ export class MockCancellationTokenSource {
   }
 }
 
-// Global state for mock
+export enum MockDiagnosticSeverity {
+  Error = 0,
+  Warning = 1,
+  Information = 2,
+  Hint = 3,
+}
+
+export class MockDiagnostic {
+  public source?: string;
+  public code?: string | number | { value: string | number; target: MockUri };
+  public relatedInformation?: Array<{ message: string; location: { uri: MockUri; range: MockRange } }>;
+
+  constructor(
+    public range: MockRange,
+    public message: string,
+    public severity: MockDiagnosticSeverity = MockDiagnosticSeverity.Error
+  ) {}
+}
+
 const onDidChangeWorkspaceFoldersEmitter = new MockEventEmitter<unknown>();
 const onDidSaveTextDocumentEmitter = new MockEventEmitter<unknown>();
 const onDidChangeTextDocumentEmitter = new MockEventEmitter<unknown>();
@@ -208,6 +239,7 @@ const onDidRenameFilesEmitter = new MockEventEmitter<unknown>();
 const onDidCreateFilesEmitter = new MockEventEmitter<unknown>();
 const onDidDeleteFilesEmitter = new MockEventEmitter<unknown>();
 const onDidChangeConfigurationEmitter = new MockEventEmitter<unknown>();
+const onDidChangeDiagnosticsEmitter = new MockEventEmitter<{ uris: readonly MockUri[] }>();
 
 export const mockVscode = {
   EventEmitter: MockEventEmitter,
@@ -220,6 +252,13 @@ export const mockVscode = {
   TreeItemCollapsibleState: MockTreeItemCollapsibleState,
   StatusBarAlignment: MockStatusBarAlignment,
   CancellationTokenSource: MockCancellationTokenSource,
+  DiagnosticSeverity: MockDiagnosticSeverity,
+  Diagnostic: MockDiagnostic,
+  languages: {
+    getDiagnostics: (_uri?: MockUri) => [] as Array<[MockUri, MockDiagnostic[]]>,
+    onDidChangeDiagnostics: onDidChangeDiagnosticsEmitter.event,
+    _fireDidChangeDiagnostics: (data: { uris: readonly MockUri[] }) => onDidChangeDiagnosticsEmitter.fire(data),
+  },
   FileType: {
     Unknown: 0,
     File: 1,

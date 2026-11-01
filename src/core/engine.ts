@@ -243,5 +243,16 @@ export class AgentGuardEngine extends Disposable {
         }
       }
     }
+
+    // Trigger incremental safety analysis for the affected files
+    const roots = this._workspaceManager.getRoots();
+    if (roots.length > 0 && batch.affectedUris.length > 0) {
+      this.scanWorkspace({
+        workspaceRoots: roots,
+        targetUris: batch.affectedUris,
+      }).catch(err => {
+        this._logger.error('Automatic incremental scan failed:', err);
+      });
+    }
   }
 }

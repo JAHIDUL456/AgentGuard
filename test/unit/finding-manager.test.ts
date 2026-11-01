@@ -25,8 +25,11 @@ suite('FindingManager', () => {
       id,
       category,
       severity,
+      confidence: 'high',
       title: `Finding ${id}`,
       message: `Message for ${id}`,
+      evidence: `Evidence for ${id}`,
+      explanation: `Explanation for ${id}`,
       location: {
         filePath,
         uri: vscode.Uri.file(filePath),

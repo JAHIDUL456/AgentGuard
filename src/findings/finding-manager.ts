@@ -80,6 +80,11 @@ export class FindingManager extends Disposable implements IFindingManager {
       'diagnostic-regression': 0,
       'logic-risk': 0,
       'broken-dependency': 0,
+      'confirmed-new-diagnostic': 0,
+      'potentially-affected-dependency': 0,
+      'potentially-broken-contract': 0,
+      'unresolved-reference': 0,
+      'analysis-incomplete': 0,
     };
 
     for (const finding of this.getAll()) {

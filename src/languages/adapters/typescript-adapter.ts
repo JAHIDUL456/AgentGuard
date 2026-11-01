@@ -74,32 +74,51 @@ export class TypeScriptAdapter extends BaseLanguageAdapter {
         if (ts.isStringLiteral(node.moduleSpecifier)) {
           imports.push(node.moduleSpecifier.text);
         }
+      } else if (ts.isCallExpression(node)) {
+        const isRequire = ts.isIdentifier(node.expression) && node.expression.text === 'require';
+        const isDynamicImport = node.expression.kind === ts.SyntaxKind.ImportKeyword;
+        if ((isRequire || isDynamicImport) && node.arguments.length > 0) {
+          const firstArg = node.arguments[0];
+          if (firstArg) {
+            if (ts.isStringLiteral(firstArg)) {
+              imports.push(firstArg.text);
+            } else {
+              imports.push(firstArg.getText(sourceFile));
+            }
+          }
+        }
       } else if (ts.isClassDeclaration(node) && node.name) {
         const { line: startLine } = sourceFile.getLineAndCharacterOfPosition(node.getStart(sourceFile));
         const { line: endLine } = sourceFile.getLineAndCharacterOfPosition(node.getEnd());
+        const header = node.getText(sourceFile).split('{')[0]?.trim();
         nodes.push({
           kind: 'class',
           name: node.name.text,
           startLine,
           endLine,
+          details: header,
         });
       } else if (ts.isInterfaceDeclaration(node)) {
         const { line: startLine } = sourceFile.getLineAndCharacterOfPosition(node.getStart(sourceFile));
         const { line: endLine } = sourceFile.getLineAndCharacterOfPosition(node.getEnd());
+        const header = node.getText(sourceFile).split('{')[0]?.trim();
         nodes.push({
           kind: 'interface',
           name: node.name.text,
           startLine,
           endLine,
+          details: header,
         });
       } else if (ts.isFunctionDeclaration(node) && node.name) {
         const { line: startLine } = sourceFile.getLineAndCharacterOfPosition(node.getStart(sourceFile));
         const { line: endLine } = sourceFile.getLineAndCharacterOfPosition(node.getEnd());
+        const header = node.getText(sourceFile).split('{')[0]?.trim();
         nodes.push({
           kind: 'function',
           name: node.name.text,
           startLine,
           endLine,
+          details: header,
         });
       } else if (ts.isEnumDeclaration(node)) {
         const { line: startLine } = sourceFile.getLineAndCharacterOfPosition(node.getStart(sourceFile));

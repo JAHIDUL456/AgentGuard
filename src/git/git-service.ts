@@ -1,7 +1,9 @@
+import * as path from 'path';
 import * as vscode from 'vscode';
 import { Disposable } from '../core/disposable';
 import { ILogger } from '../core/logger';
 import { GitClient } from './git-client';
+import { GitProcess } from './git-process';
 import { GitRepoState, GitStatusResult, IGitService } from './types';
 
 export class GitService extends Disposable implements IGitService {
@@ -71,6 +73,30 @@ export class GitService extends Disposable implements IGitService {
     }
     this._onDidChangeGitStatus.fire(this._statusCache);
     return this._statusCache;
+  }
+
+  public async getFileAtHead(
+    uri: vscode.Uri,
+    token?: vscode.CancellationToken
+  ): Promise<string | undefined> {
+    const repoRoot = await this._resolveRepoRoot(uri);
+    if (!repoRoot) {
+      return undefined;
+    }
+    const relPath = path.relative(repoRoot, uri.fsPath).replace(/\\/g, '/');
+    try {
+      const res = await GitProcess.exec(['show', `HEAD:${relPath}`], {
+        cwd: repoRoot,
+        timeoutMs: 3000,
+        token,
+      });
+      if (res.exitCode === 0) {
+        return res.stdout;
+      }
+    } catch (err) {
+      this._logger.debug(`Could not retrieve git HEAD for ${uri.fsPath}:`, err);
+    }
+    return undefined;
   }
 
   public invalidateCache(uri?: vscode.Uri): void {

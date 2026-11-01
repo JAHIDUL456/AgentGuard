@@ -57,5 +57,6 @@ export interface IGitService {
   getRepositoryState(uri: vscode.Uri): Promise<GitRepoState | undefined>;
   getStatusForRoot(uri: vscode.Uri, token?: vscode.CancellationToken): Promise<GitStatusResult | undefined>;
   getAllStatuses(token?: vscode.CancellationToken): Promise<ReadonlyMap<string, GitStatusResult>>;
+  getFileAtHead(uri: vscode.Uri, token?: vscode.CancellationToken): Promise<string | undefined>;
   readonly onDidChangeGitStatus: vscode.Event<ReadonlyMap<string, GitStatusResult>>;
 }

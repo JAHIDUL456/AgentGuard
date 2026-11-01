@@ -2,11 +2,18 @@ import * as vscode from 'vscode';
 
 export type FindingSeverity = 'error' | 'warning' | 'info';
 
+export type ConfidenceLevel = 'high' | 'medium' | 'low';
+
 export type FindingCategory =
   | 'untouched-file'
   | 'diagnostic-regression'
   | 'logic-risk'
-  | 'broken-dependency';
+  | 'broken-dependency'
+  | 'confirmed-new-diagnostic'
+  | 'potentially-affected-dependency'
+  | 'potentially-broken-contract'
+  | 'unresolved-reference'
+  | 'analysis-incomplete';
 
 export interface FindingLocation {
   readonly filePath: string;
@@ -18,8 +25,11 @@ export interface Finding {
   readonly id: string;
   readonly category: FindingCategory;
   readonly severity: FindingSeverity;
+  readonly confidence: ConfidenceLevel;
   readonly title: string;
   readonly message: string;
+  readonly evidence: string;
+  readonly explanation: string;
   readonly location: FindingLocation;
   readonly sourceEngine: string;
   readonly timestamp: number;
@@ -41,4 +51,3 @@ export interface EngineStatus {
   readonly gitAvailable: boolean;
   readonly gitRepoCount: number;
 }
-

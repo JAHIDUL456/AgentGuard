@@ -1,5 +1,8 @@
 import * as vscode from 'vscode';
 import { AnalysisEngineRegistry } from './analysis/analyzer-registry';
+import { BlastRadiusEngine } from './analysis/blast-radius/blast-radius-engine';
+import { DiagnosticDeltaEngine } from './analysis/diagnostics/diagnostic-delta-engine';
+import { DiagnosticTracker } from './analysis/diagnostics/diagnostic-tracker';
 import { AgentGuardEngine } from './core/engine';
 import { ILogger, LogLevel, OutputChannelLogger } from './core/logger';
 import { FindingManager } from './findings/finding-manager';
@@ -20,6 +23,9 @@ export interface AgentGuardApi {
   readonly languageRegistry: LanguageAdapterRegistry;
   readonly analysisRegistry: AnalysisEngineRegistry;
   readonly findingManager: FindingManager;
+  readonly diagnosticTracker: DiagnosticTracker;
+  readonly diagnosticEngine: DiagnosticDeltaEngine;
+  readonly blastRadiusEngine: BlastRadiusEngine;
   readonly treeProvider: AgentGuardTreeProvider;
   readonly statusBarManager: StatusBarManager;
   readonly logger: ILogger;
@@ -57,6 +63,25 @@ export async function activate(
 
   const analysisRegistry = new AnalysisEngineRegistry(logger);
   context.subscriptions.push(analysisRegistry);
+
+  const diagnosticTracker = new DiagnosticTracker(
+    workspaceManager,
+    languageRegistry,
+    logger
+  );
+  context.subscriptions.push(diagnosticTracker);
+
+  const diagnosticEngine = new DiagnosticDeltaEngine(diagnosticTracker, logger);
+  analysisRegistry.registerEngine(diagnosticEngine);
+
+  const blastRadiusEngine = new BlastRadiusEngine(
+    workspaceManager,
+    languageRegistry,
+    diagnosticTracker,
+    gitService,
+    logger
+  );
+  analysisRegistry.registerEngine(blastRadiusEngine);
 
   const findingManager = new FindingManager(logger);
   context.subscriptions.push(findingManager);
@@ -125,6 +150,11 @@ export async function activate(
   // Boot Engine
   await engine.initialize();
 
+  // Asynchronously initialize diagnostic baseline in the background
+  diagnosticTracker.captureBaseline().catch(err => {
+    logger.debug('Background diagnostic baseline capture warning:', err);
+  });
+
   activeApi = {
     engine,
     workspaceManager,
@@ -133,6 +163,9 @@ export async function activate(
     languageRegistry,
     analysisRegistry,
     findingManager,
+    diagnosticTracker,
+    diagnosticEngine,
+    blastRadiusEngine,
     treeProvider,
     statusBarManager,
     logger,
