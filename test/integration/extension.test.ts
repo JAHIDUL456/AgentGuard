@@ -97,4 +97,13 @@ suite('AgentGuard Extension Integration Test', () => {
     api.changeMonitor.clearQueue();
     assert.strictEqual(api.changeMonitor.getPendingCount(), 0);
   });
+
+  test('registers all 11 language adapters in live extension host', () => {
+    const adapters = api.languageRegistry.getAdapters();
+    assert.strictEqual(adapters.length, 11);
+    assert.ok(adapters.some(a => a.id === 'typescript'));
+    assert.ok(adapters.some(a => a.id === 'python'));
+    assert.ok(adapters.some(a => a.id === 'go'));
+    assert.ok(adapters.some(a => a.id === 'rust'));
+  });
 });

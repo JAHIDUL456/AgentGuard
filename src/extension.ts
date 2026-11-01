@@ -52,6 +52,7 @@ export async function activate(
   context.subscriptions.push(gitService);
 
   const languageRegistry = new LanguageAdapterRegistry(logger);
+  languageRegistry.registerBuiltinAdapters();
   context.subscriptions.push(languageRegistry);
 
   const analysisRegistry = new AnalysisEngineRegistry(logger);

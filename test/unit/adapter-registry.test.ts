@@ -4,25 +4,16 @@ import { NullLogger } from '../../src/core/logger';
 import { LanguageAdapterRegistry } from '../../src/languages/adapter-registry';
 import { ILanguageAdapter } from '../../src/languages/types';
 
+import { TypeScriptAdapter } from '../../src/languages/adapters/typescript-adapter';
+
 suite('LanguageAdapterRegistry', () => {
   let registry: LanguageAdapterRegistry;
+  let tsAdapter: TypeScriptAdapter;
 
   setup(() => {
     registry = new LanguageAdapterRegistry(new NullLogger());
+    tsAdapter = new TypeScriptAdapter(new NullLogger());
   });
-
-  teardown(() => {
-    registry.dispose();
-  });
-
-  const tsAdapter: ILanguageAdapter = {
-    id: 'typescript',
-    displayName: 'TypeScript',
-    fileExtensions: ['.ts', '.tsx'],
-    capabilities: ['diagnostics', 'ast-inspection'],
-    supports: (uri: vscode.Uri) =>
-      uri.fsPath.endsWith('.ts') || uri.fsPath.endsWith('.tsx'),
-  };
 
   test('registers and queries adapters by file extension', () => {
     const disposable = registry.registerAdapter(tsAdapter);

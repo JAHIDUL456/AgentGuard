@@ -220,6 +220,12 @@ export const mockVscode = {
   TreeItemCollapsibleState: MockTreeItemCollapsibleState,
   StatusBarAlignment: MockStatusBarAlignment,
   CancellationTokenSource: MockCancellationTokenSource,
+  FileType: {
+    Unknown: 0,
+    File: 1,
+    Directory: 2,
+    SymbolicLink: 64,
+  },
   ProgressLocation: {
     Notification: 15,
   },
@@ -244,7 +250,27 @@ export const mockVscode = {
       get: <T>(_key: string, defaultValue?: T): T => defaultValue as T,
     }),
     fs: {
-      stat: async (_uri: MockUri) => ({ type: 2 }), // 2 = Directory
+      stat: async (uri: MockUri) => {
+        const fsMod = require('fs');
+        try {
+          const s = fsMod.statSync(uri.fsPath);
+          return { type: s.isDirectory() ? 2 : s.isFile() ? 1 : 0 };
+        } catch {
+          return { type: 2 };
+        }
+      },
+      readDirectory: async (uri: MockUri) => {
+        const fsMod = require('fs');
+        try {
+          const entries = fsMod.readdirSync(uri.fsPath, { withFileTypes: true });
+          return entries.map((e: any) => [
+            e.name,
+            e.isDirectory() ? 2 : e.isFile() ? 1 : 0,
+          ]);
+        } catch {
+          return [];
+        }
+      },
     },
     openTextDocument: async (options: { content: string; language: string }) => ({
       getText: () => options.content,
