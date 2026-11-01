@@ -122,3 +122,4 @@ export class GitParser {
     return 'modified';
   }
 }
+

@@ -179,3 +179,4 @@ export class GitClient {
     return GitParser.parseUnifiedDiffHunks(diffRes.stdout);
   }
 }
+

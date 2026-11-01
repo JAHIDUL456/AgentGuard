@@ -112,3 +112,4 @@ export class ChangeQueue {
     return incoming;
   }
 }
+

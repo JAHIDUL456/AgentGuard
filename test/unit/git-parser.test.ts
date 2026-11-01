@@ -119,3 +119,4 @@ diff --git a/src/index.ts b/src/index.ts
     assert.strictEqual(hunks.length, 10, 'Hunks must be capped at maxHunks');
   });
 });
+

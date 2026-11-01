@@ -92,3 +92,4 @@ suite('ChangeQueue (Batching, Suppression & Coalescing)', () => {
     assert.strictEqual(smallQueue.size, 10, 'Queue size should not exceed maxCapacity');
   });
 });
+

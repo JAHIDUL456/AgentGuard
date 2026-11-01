@@ -85,3 +85,4 @@ suite('ChangeProcessor (Debouncing, Batching & Cancellation)', () => {
     assert.strictEqual(tokenSource2.token.isCancellationRequested, true);
   });
 });
+

@@ -33,3 +33,4 @@ suite('GitProcess (Safe Subprocess Execution)', () => {
     assert.strictEqual(res.stderr, 'Operation cancelled');
   });
 });
+

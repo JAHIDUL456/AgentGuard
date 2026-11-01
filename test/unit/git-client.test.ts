@@ -108,3 +108,4 @@ suite('GitClient (Repository State & Safe Operations)', () => {
     assert.strictEqual(renameEntry.oldRelPath, 'orig.ts');
   });
 });
+

@@ -91,3 +91,4 @@ suite('Git Fallback & Multi-Root Support', () => {
     });
   });
 });
+

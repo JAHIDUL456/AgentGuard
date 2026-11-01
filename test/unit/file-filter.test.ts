@@ -79,3 +79,4 @@ suite('FileFilter & Self-Trigger Prevention', () => {
     assert.strictEqual(FileFilter.shouldIgnore('/workspace/README.md'), false);
   });
 });
+
