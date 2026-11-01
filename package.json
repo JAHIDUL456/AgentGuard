@@ -21,6 +21,14 @@
     "ai-code-guard",
     "offline-first"
   ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/agentguard/agentguard.git"
+  },
+  "bugs": {
+    "url": "https://github.com/agentguard/agentguard/issues"
+  },
+  "homepage": "https://github.com/agentguard/agentguard#readme",
   "icon": "resources/icons/agentguard-icon.png",
   "main": "./dist/extension.js",
   "activationEvents": [
@@ -64,6 +72,11 @@
         "command": "agentguard.clearFindings",
         "title": "AgentGuard: Clear Findings",
         "icon": "$(clear-all)"
+      },
+      {
+        "command": "agentguard.focusSidebar",
+        "title": "AgentGuard: Focus Sidebar View",
+        "icon": "$(shield)"
       }
     ],
     "menus": {

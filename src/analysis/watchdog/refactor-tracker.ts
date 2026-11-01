@@ -90,8 +90,12 @@ export class RefactorTracker {
     equivalentSymbols: readonly string[]
   ): boolean {
     for (const added of addedLines) {
+      if (this.isCommentOnly(added.text)) {
+        continue;
+      }
+      const stripped = this.stripCommentsAndStrings(added.text);
       for (const eq of equivalentSymbols) {
-        if (added.text.includes(eq)) {
+        if (stripped.includes(eq)) {
           return true;
         }
       }

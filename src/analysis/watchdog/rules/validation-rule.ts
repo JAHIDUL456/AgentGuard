@@ -37,6 +37,11 @@ export class ValidationRule extends BaseWatchdogRule {
       label: 'Explicit validation assertion function',
       equivalentTerms: ['validateInput', 'validateBody', 'validateParams', 'assertValid'],
     },
+    {
+      regex: /\b(?:if\s+not\s+(?:data|payload|params|body|input)\.get\b|validate_\w+\s*\()/i,
+      label: 'Python input or payload validation check',
+      equivalentTerms: ['validate', 'data.get', 'payload.get', 'clean_'],
+    },
   ];
 
   public async inspect(

@@ -92,6 +92,13 @@ export class MockThemeColor {
   constructor(public readonly id: string) {}
 }
 
+export class MockRelativePattern {
+  constructor(public readonly base: MockUri | string, public readonly pattern: string) {}
+  public get baseUri(): MockUri {
+    return typeof this.base === 'string' ? MockUri.file(this.base) : this.base;
+  }
+}
+
 export class MockMarkdownString {
   public value: string;
   public isTrusted: boolean = false;
@@ -314,6 +321,7 @@ export const mockVscode = {
   Position: MockPosition,
   ThemeIcon: MockThemeIcon,
   ThemeColor: MockThemeColor,
+  RelativePattern: MockRelativePattern,
   MarkdownString: MockMarkdownString,
   TreeItem: MockTreeItem,
   TreeItemCollapsibleState: MockTreeItemCollapsibleState,
@@ -358,7 +366,33 @@ export const mockVscode = {
     getConfiguration: (_section?: string) => ({
       get: <T>(_key: string, defaultValue?: T): T => defaultValue as T,
     }),
-    findFiles: async (_include: any, _exclude?: any, _maxResults?: number, _token?: any) => [] as MockUri[],
+    findFiles: async (include: any, _exclude?: any, _maxResults?: number, _token?: any) => {
+      const fsMod = require('fs');
+      const pathMod = require('path');
+      const rootPath =
+        typeof include === 'string'
+          ? include
+          : include?.baseUri?.fsPath ?? include?.base?.fsPath ?? include?.base;
+      if (!rootPath || !fsMod.existsSync(rootPath)) {
+        return [] as MockUri[];
+      }
+      const results: MockUri[] = [];
+      const walk = (dir: string) => {
+        try {
+          const entries = fsMod.readdirSync(dir, { withFileTypes: true });
+          for (const e of entries) {
+            const full = pathMod.join(dir, e.name);
+            if (e.isDirectory() && !e.name.startsWith('.') && e.name !== 'node_modules') {
+              walk(full);
+            } else if (e.isFile()) {
+              results.push(MockUri.file(full));
+            }
+          }
+        } catch {}
+      };
+      walk(rootPath);
+      return results;
+    },
     fs: {
       stat: async (uri: MockUri) => {
         const fsMod = require('fs');
