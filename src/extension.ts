@@ -3,6 +3,7 @@ import { AnalysisEngineRegistry } from './analysis/analyzer-registry';
 import { BlastRadiusEngine } from './analysis/blast-radius/blast-radius-engine';
 import { DiagnosticDeltaEngine } from './analysis/diagnostics/diagnostic-delta-engine';
 import { DiagnosticTracker } from './analysis/diagnostics/diagnostic-tracker';
+import { LogicWatchdogEngine } from './analysis/watchdog/watchdog-engine';
 import { AgentGuardEngine } from './core/engine';
 import { ILogger, LogLevel, OutputChannelLogger } from './core/logger';
 import { FindingManager } from './findings/finding-manager';
@@ -26,6 +27,7 @@ export interface AgentGuardApi {
   readonly diagnosticTracker: DiagnosticTracker;
   readonly diagnosticEngine: DiagnosticDeltaEngine;
   readonly blastRadiusEngine: BlastRadiusEngine;
+  readonly logicWatchdogEngine: LogicWatchdogEngine;
   readonly treeProvider: AgentGuardTreeProvider;
   readonly statusBarManager: StatusBarManager;
   readonly logger: ILogger;
@@ -82,6 +84,14 @@ export async function activate(
     logger
   );
   analysisRegistry.registerEngine(blastRadiusEngine);
+
+  const logicWatchdogEngine = new LogicWatchdogEngine(
+    workspaceManager,
+    languageRegistry,
+    gitService,
+    logger
+  );
+  analysisRegistry.registerEngine(logicWatchdogEngine);
 
   const findingManager = new FindingManager(logger);
   context.subscriptions.push(findingManager);
@@ -166,6 +176,7 @@ export async function activate(
     diagnosticTracker,
     diagnosticEngine,
     blastRadiusEngine,
+    logicWatchdogEngine,
     treeProvider,
     statusBarManager,
     logger,
