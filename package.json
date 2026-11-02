@@ -3,7 +3,7 @@
   "displayName": "AgentGuard",
   "description": "Offline-first, zero-configuration codebase safety extension. Catches silent breaks and flags hidden logic risks automatically.",
   "version": "0.1.0",
-  "publisher": "agentguard",
+  "publisher": "swe-jahid-agentguard",
   "author": "Md. Jahidul Islam",
   "license": "Apache-2.0",
   "engines": {
