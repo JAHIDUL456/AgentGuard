@@ -9,6 +9,9 @@ dist/
 # VS Code Test Artifacts
 .vscode-test/
 
+# AgentGuard Generated Reports
+.vscode/agentguard-report*.md
+
 # Logs
 *.log
 npm-debug.log*
