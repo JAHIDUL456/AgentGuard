@@ -406,5 +406,37 @@ suite('Stage 6: Professional Native VS Code UI & Finding Manager', () => {
     workspaceManager.dispose();
     findingManager.dispose();
   });
+
+  test('AgentGuardTreeProvider: displays waiting state when no workspace folder is open', async () => {
+    (vscode.workspace as any).workspaceFolders = [];
+    const workspaceManager = new WorkspaceManager(logger);
+    const findingManager = new FindingManager(logger);
+    const mockEngine = {
+      state: 'ready',
+      gitAvailable: false,
+      gitRepoCount: 0,
+      getStatus: () => ({
+        state: 'ready',
+        activeWorkspaceFolders: 0,
+        findingCount: 0,
+        lastScanTimestamp: 0,
+        gitAvailable: false,
+        gitRepoCount: 0,
+      }),
+      onDidChangeState: new vscode.EventEmitter<any>().event,
+    } as unknown as AgentGuardEngine;
+
+    const provider = new AgentGuardTreeProvider(
+      mockEngine,
+      workspaceManager,
+      findingManager
+    );
+    const rootItems = await provider.getChildren();
+    assert.strictEqual(rootItems.length, 2);
+    assert.strictEqual(rootItems[0]?.description, 'Waiting for workspace');
+
+    workspaceManager.dispose();
+    findingManager.dispose();
+  });
 });
 
