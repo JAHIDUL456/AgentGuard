@@ -50,12 +50,18 @@ $$\text{Install} \longrightarrow \text{Open Workspace} \longrightarrow \text{Sta
 ## 2. Core Features
 
 - **Autonomous File Monitoring**: Uses native VS Code `FileSystemWatcher` and document event listeners with intelligent debouncing, batching, and duplicate suppression. External batch edits made by background AI agents are coalesced into a single coherent analysis cycle.
+- **Three-Level Staged Analysis**:
+  - *Fast Local Analysis*: Rapid sub-100ms syntax and logic checks immediately after an edit pause.
+  - *Incremental Dependency Analysis*: Updates symbol indexes and flags affected downstream consumer files on saves or renames.
+  - *Wider Analysis*: Full workspace verification during idle periods or on-demand user requests.
+- **Dedicated AgentGuard Bottom Panel**: Native panel tab alongside Problems, Output, and Terminal featuring an interactive master-detail interface and structured 6-question root-cause breakdown (*What happened?*, *Why?*, *What changed?*, *What is affected?*, *How to fix it?*, *Verification State*).
+- **Redesigned Minimal Activity Bar Sidebar**: Information-dense, clutter-free developer view with responsive 2-column metric cards (**New Issues**, **Critical Risks**, **Affected Files**, **Resolved**) acting as interactive filters.
+- **Root-Cause Impact Grouping**: Groups multiple broken untouched consumer files under a single root-cause finding with exact file counts and related locations.
+- **Silent Behavior Regression Watchdog**: Detects removed `await` keywords (floating promises), newly introduced empty `catch {}` blocks, removed database transaction rollbacks, removed error re-throws, and removed optional chaining (`?.`).
 - **Diagnostic Delta Tracking**: Captures language-server diagnostic baselines and tracks shifts across edits. Distinguishes newly introduced errors from pre-existing baseline issues with range-shift normalization.
 - **Untouched File Blast-Radius Analysis**: Computes structural dependency graphs and diffs symbol exports against imports to identify untouched files broken by changed contracts.
-- **Critical Logic & Safety Watchdog**: Uses pattern-based AST extraction to detect the deletion or weakening of authentication, authorization, validation, error handling, CSRF tokens, parameterized SQL queries, and type safety directives.
 - **Refactor-Aware Noise Suppression**: Understands renames, relocations, and equivalent logic replacements across files, preventing false alarms when safeguards are intentionally refactored.
-- **Native VS Code Interface**: Integrates directly into the VS Code Activity Bar with a dedicated shield view, custom Problem diagnostics, and real-time status bar updates.
-- **Automatic Markdown Handoff**: Continuously maintains `.vscode/agentguard-report.md` with complete evidence, file locations, remediation instructions, and standardized AI prompt handoffs.
+- **Interactive Safety Demo**: Try the real-time detection, breaking contract impact, and automatic resolution pipeline via `AgentGuard: Try Interactive Demo` in a completely safe, isolated environment.
 - **Secret & Token Redaction**: Automatically sanitizes JWTs, private keys, API tokens, and credentials from all generated reports.
 
 ---
@@ -351,7 +357,7 @@ AgentGuard provides deterministic, lightweight heuristics rather than heavyweigh
 
 ## 12. Testing
 
-AgentGuard maintains a comprehensive test suite containing **139+ Unit Tests** and **11 VS Code Extension Host Integration Tests**.
+AgentGuard maintains a comprehensive test suite containing **169+ Unit Tests** and **11 VS Code Extension Host Integration Tests** across 20 test suites.
 
 ### Run Unit Tests
 Unit tests use Mocha and run in an isolated in-memory mock environment:
@@ -386,7 +392,7 @@ Package the extension for distribution using `@vscode/vsce`:
 ```bash
 npm run package-extension
 ```
-This generates `agentguard-0.1.0.vsix` containing only runtime code, icons, documentation, and metadata (excluding test files, build caches, and developer configs).
+This generates `agentguard-2.0.0.vsix` (~1.05 MB) containing only runtime code, icons, documentation, and metadata (excluding test files, build caches, and developer configs).
 
 ---
 

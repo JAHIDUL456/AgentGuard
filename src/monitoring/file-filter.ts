@@ -19,6 +19,26 @@ export const IGNORED_DIRECTORY_NAMES = new Set([
   '.agentguard',
 ]);
 
+export const IGNORED_FILE_EXTENSIONS = new Set([
+  '.min.js',
+  '.min.css',
+  '.map',
+  '.snap',
+  '.lock',
+]);
+
+export const IGNORED_LOCK_FILES = new Set([
+  'package-lock.json',
+  'yarn.lock',
+  'pnpm-lock.yaml',
+  'Cargo.lock',
+  'Gemfile.lock',
+  'composer.lock',
+  'flake.lock',
+]);
+
+export const MAX_ANALYSIS_FILE_SIZE_BYTES = 2 * 1024 * 1024; // 2MB limit
+
 const REPORT_FILE_PATTERNS = [
   /^agentguard[-_]report.*\.(md|tmp)$/i,
   /^agentguard[-_]safety[-_]report.*\.(md|tmp)$/i,
@@ -44,6 +64,20 @@ export class FileFilter {
    */
   public static shouldIgnore(filePath: string): boolean {
     const normalized = this.normalizePath(filePath);
+    const baseName = path.basename(normalized);
+
+    // Fast check for lock files
+    if (IGNORED_LOCK_FILES.has(baseName)) {
+      return true;
+    }
+
+    // Fast check for minified/sourcemap extensions
+    for (const ext of IGNORED_FILE_EXTENSIONS) {
+      if (baseName.endsWith(ext)) {
+        return true;
+      }
+    }
+
     const segments = normalized.split('/').filter(Boolean);
 
     for (const segment of segments) {
@@ -58,6 +92,16 @@ export class FileFilter {
     }
 
     return false;
+  }
+
+  /**
+   * Checks whether a file exceeds the maximum safe analysis file size (default: 2MB).
+   */
+  public static isFileSizeExceeded(
+    sizeInBytes: number,
+    limitBytes: number = MAX_ANALYSIS_FILE_SIZE_BYTES
+  ): boolean {
+    return sizeInBytes > limitBytes;
   }
 
   /**

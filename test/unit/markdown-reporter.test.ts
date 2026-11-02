@@ -23,6 +23,8 @@ suite('MarkdownReporter', () => {
         'potentially-broken-contract': 0,
         'unresolved-reference': 0,
         'analysis-incomplete': 0,
+        'unused-code': 0,
+        'type-safety': 0,
       },
     };
 
@@ -69,6 +71,8 @@ suite('MarkdownReporter', () => {
         'potentially-broken-contract': 0,
         'unresolved-reference': 0,
         'analysis-incomplete': 0,
+        'unused-code': 0,
+        'type-safety': 0,
       },
     };
 

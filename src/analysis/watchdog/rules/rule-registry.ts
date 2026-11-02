@@ -7,6 +7,7 @@ import { AuthenticationRule } from './authentication-rule';
 import { AuthorizationRule } from './authorization-rule';
 import { ErrorHandlingRule } from './error-handling-rule';
 import { SecurityRule } from './security-rule';
+import { SilentRegressionRule } from './silent-regression-rule';
 import { TypeSafetyRule } from './type-safety-rule';
 import { ValidationRule } from './validation-rule';
 
@@ -24,7 +25,8 @@ export class WatchdogRuleRegistry {
       new ValidationRule(),
       new ErrorHandlingRule(),
       new SecurityRule(),
-      new TypeSafetyRule()
+      new TypeSafetyRule(),
+      new SilentRegressionRule()
     );
   }
 

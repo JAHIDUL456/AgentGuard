@@ -17,6 +17,7 @@ export class AgentGuardEngine extends Disposable {
   private _gitAvailable = false;
   private _gitRepoCount = 0;
   private _activeScanTokenSource: vscode.CancellationTokenSource | undefined;
+  private _currentGeneration = 0;
 
   private readonly _onDidChangeState = this._register(
     new vscode.EventEmitter<EngineState>()
@@ -104,6 +105,14 @@ export class AgentGuardEngine extends Disposable {
     }
   }
 
+  public async scanFile(uri: vscode.Uri): Promise<readonly Finding[]> {
+    const roots = this._workspaceManager.getRoots();
+    return this.scanWorkspace({
+      workspaceRoots: roots,
+      targetUris: [uri],
+    });
+  }
+
   public async scanWorkspace(
     targetScope?: AnalysisScope,
     cancellationToken?: vscode.CancellationToken
@@ -121,6 +130,7 @@ export class AgentGuardEngine extends Disposable {
 
     const tokenSource = new vscode.CancellationTokenSource();
     this._activeScanTokenSource = tokenSource;
+    const scanGeneration = ++this._currentGeneration;
 
     // Link cancellation token if provided
     let linkedRegistration: vscode.Disposable | undefined;
@@ -132,12 +142,13 @@ export class AgentGuardEngine extends Disposable {
 
     const previousState = this._state;
     this._setState('analyzing');
-    this._logger.info('Starting codebase safety scan...');
+    this._logger.info(`Starting codebase safety scan (gen ${scanGeneration})...`);
 
     try {
       const roots = this._workspaceManager.getRoots();
       const scope: AnalysisScope = targetScope ?? {
         workspaceRoots: roots,
+        level: 'wider',
       };
 
       // If Git is available, refresh Git statuses for roots
@@ -153,15 +164,22 @@ export class AgentGuardEngine extends Disposable {
       const allFindings: Finding[] = [];
 
       for (const engine of engines) {
-        if (tokenSource.token.isCancellationRequested) {
-          this._logger.info('Safety scan cancelled.');
+        if (tokenSource.token.isCancellationRequested || scanGeneration !== this._currentGeneration) {
+          this._logger.info(`Safety scan gen ${scanGeneration} cancelled or superseded by gen ${this._currentGeneration}.`);
           break;
         }
 
         try {
           const findings = await engine.analyze(scope, tokenSource.token);
-          this._findingManager.setFindings(engine.id, findings);
-          allFindings.push(...findings);
+          if (!tokenSource.token.isCancellationRequested && scanGeneration === this._currentGeneration) {
+            this._findingManager.reconcileScope(
+              engine.id,
+              scope.targetUris,
+              findings,
+              scanGeneration
+            );
+            allFindings.push(...findings);
+          }
         } catch (err) {
           this._logger.error(
             `Analysis engine '${engine.name}' failed during scan:`,
@@ -170,11 +188,11 @@ export class AgentGuardEngine extends Disposable {
         }
       }
 
-      if (!tokenSource.token.isCancellationRequested) {
+      if (!tokenSource.token.isCancellationRequested && scanGeneration === this._currentGeneration) {
         this._lastScanTimestamp = Date.now();
-        this._onDidScanComplete.fire(allFindings);
+        this._onDidScanComplete.fire(this._findingManager.getAll());
         this._logger.info(
-          `Safety scan complete. Total findings: ${allFindings.length}`
+          `Safety scan complete. Total active findings: ${this._findingManager.getAll().length}`
         );
       }
 
@@ -244,12 +262,25 @@ export class AgentGuardEngine extends Disposable {
       }
     }
 
+    // Determine analysis level: Fast Local vs Incremental Dependency
+    const hasMeaningfulChanges = batch.events.some(
+      e =>
+        e.source === 'save' ||
+        e.source === 'rename' ||
+        e.source === 'diagnostics' ||
+        e.kind === 'deleted'
+    );
+    const level = hasMeaningfulChanges
+      ? 'incremental-dependency'
+      : 'fast-local';
+
     // Trigger incremental safety analysis for the affected files
     const roots = this._workspaceManager.getRoots();
     if (roots.length > 0 && batch.affectedUris.length > 0) {
       this.scanWorkspace({
         workspaceRoots: roots,
         targetUris: batch.affectedUris,
+        level,
       }).catch(err => {
         this._logger.error('Automatic incremental scan failed:', err);
       });

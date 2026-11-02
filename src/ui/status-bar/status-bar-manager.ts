@@ -54,8 +54,8 @@ export class StatusBarManager extends Disposable {
     }
 
     if (state === 'analyzing') {
-      this._item.text = '$(sync~spin) AgentGuard: Analyzing...';
-      this._item.tooltip = 'AgentGuard: Codebase safety analysis in progress';
+      this._item.text = '$(sync~spin) AgentGuard: Checking...';
+      this._item.tooltip = 'AgentGuard: Verification and change impact analysis in progress';
       this._item.backgroundColor = undefined;
       return;
     }

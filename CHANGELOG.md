@@ -7,55 +7,72 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.0.0] - 2026-11-02
+
+### Highlights
+- **V2.0 Major Release**: Complete architectural overhaul delivering authoritative diagnostic accuracy, real-time finding lifecycles with automatic resolution, root-cause impact grouping, a redesigned Activity Bar sidebar, a dedicated bottom panel, and package size optimization (1.05 MB VSIX, ~74% reduction).
+
+### Added
+- **Dedicated AgentGuard Bottom Panel**:
+  - Contributed native panel tab alongside Problems, Terminal, Output, and Debug Console.
+  - Master-Detail layout with search, grouping (by Severity, Category, File, Root Cause), and filter pills.
+  - Structured 6-question issue breakdown:
+    1. *What happened?* (Plain-English explanation)
+    2. *Why?* (Root cause & rule identifier)
+    3. *What changed?* (Change evidence diff)
+    4. *What is affected?* (Dependent consumer files & locations)
+    5. *How to fix it?* (Remediation guidance)
+    6. *Verification State* (`verified-breaking`, `verified-clean`, `unverified`)
+  - Functional quick actions: Open Source, View Diff, Copy AI Fix Prompt, Recheck, Ignore, and Apply Quick Fix.
+- **Redesigned Activity Bar Sidebar Experience**:
+  - Minimal, information-dense interface using native VS Code theme variables.
+  - Responsive 2-column summary cards (**New Issues**, **Critical Risks**, **Affected Files**, **Resolved**) functioning as clickable filters.
+  - Categorized finding groups: Breaking Changes, New Regressions, Security & Logic, Unused Code, Needs Review, and Verified Resolved.
+  - Empty state: clean, reassuring `No new regressions detected.`.
+  - Removed clutter: language adapter lists, debug counters, and raw activity logs moved out of the primary view.
+- **Silent Behavior Regression Watchdog (`SilentRegressionRule`)**:
+  - Detects removed `await` keywords on asynchronous function calls (floating unhandled promises).
+  - Detects newly introduced empty `catch {}` blocks swallowing exceptions.
+  - Detects removed database transaction rollbacks (`tx.rollback()`, `abortTransaction()`).
+  - Detects removed error re-throws and propagation.
+  - Detects removed optional chaining operators (`?.`) replaced by direct property access.
+- **Code-Change Impact Analysis (Root-Cause Grouping)**:
+  - Groups multiple untouched consumer file breakages under a single root-cause finding with accurate reference counts and related locations.
+- **Three-Level Analysis Engine**:
+  - *Fast Local Analysis*: rapid local checks after edit pause.
+  - *Incremental Dependency Analysis*: updates symbols and affected consumers on save/rename.
+  - *Wider Analysis*: full repository verification during idle cycles or explicit user request.
+- **Interactive Safety Demo (`agentguard.tryInteractiveDemo`)**:
+  - Safe, isolated walkthrough running the real analysis pipeline on temporary fixtures without modifying user projects.
+- **Simple 2-Line Editor Hover**:
+  - Replaced verbose hovers with concise, actionable tooltips: bold title, explanation, direct `Fix:` guidance, and `Copy AI Fix Prompt` / `Open in Panel` actions.
+
+### Fixed
+- **Root-Cause Detection Accuracy (Prompt 1)**:
+  - Resolved GraphQL identifier false positives where `GraphQLInt` was misidentified as `Graph` rename.
+  - Fixed false-positive undefined variable errors on React `.map()` callback parameters.
+  - Corrected lexical scope handling for arrow functions, closures, and object/array parameter destructuring.
+  - Resolved JSX lowercase HTML elements and attributes being flagged as undeclared identifiers.
+  - Corrected false-positive unused imports for `React` when JSX elements are present.
+  - Fixed resolution of package subpath imports (e.g. `react-icons/fa`, `reactstrap`).
+- **Race Conditions & In-Flight Cancellation (Prompt 2)**:
+  - Added monotonic `currentGeneration` IDs and stale-result rejection, preventing older analyses from overwriting newer edits.
+  - Connected `CancellationTokenSource` across all engines to abort obsolete scans immediately.
+  - Implemented line-shift identity resilience (`_computeStableIdentity`), updating shifted findings in-place rather than creating duplicates.
+  - Prevented infinite diagnostic loops by filtering out AgentGuard's own published diagnostics.
+
+### Changed
+- **Package Size Optimization**:
+  - Minified and tree-shaken production bundle via esbuild.
+  - Excluded minified libraries, source maps, test fixtures, and lockfiles from VSIX.
+  - Packaged VSIX size reduced to **1.05 MB** (from ~4 MB baseline in V1).
+- **Workspace Pollution Prevention**:
+  - Automatic writing of `.vscode/agentguard-report.md` is now disabled by default (`agentguard.autoReport: false`).
+  - Added manual Markdown export (`agentguard.generateReport`) and JSON export (`agentguard.exportJsonReport`).
+
+---
+
 ## [0.1.0] - 2026-11-01
 
 ### Added
-- **Core Monitoring & Change Pipeline (Stage 2)**:
-  - Multi-tier file change watcher using VS Code `FileSystemWatcher`, `onDidChangeTextDocument`, and `onDidSaveTextDocument`.
-  - Bounded ring `ChangeQueue` with automatic duplicate suppression, event coalescing (e.g. create + delete = net no-op), and backpressure protection.
-  - Debounced `ChangeProcessor` with cancellation token propagation on new burst flushes.
-  - Safe subprocess execution for Git via `child_process.execFile` with argument arrays (zero shell interpolation).
-  - NUL-delimited porcelain status parser and unified diff parser supporting rename detection and line-range extraction.
-  - Graceful fallback mode allowing full monitoring when Git is absent or not initialized.
-
-- **Universal Multi-Language Adapter Framework (Stage 3)**:
-  - Pluggable adapter architecture isolating adapter failures from extension core.
-  - Built-in adapters for 11 programming languages: TypeScript, JavaScript, Python, PHP, C#, Java, Go, Rust, Dart, C, and C++.
-  - Explicit capability levels (Level 1: Change Monitoring through Level 5: Deep Semantic Analysis) and declared limitations.
-  - Manifest detectors for `package.json`, `tsconfig.json`, `pyproject.toml`, `requirements.txt`, `Cargo.toml`, `go.mod`, `composer.json`, `pom.xml`, `build.gradle`, `CMakeLists.txt`, `pubspec.yaml`, and `.csproj`.
-  - Fault-tolerant AST parsing and symbol extraction.
-
-- **Diagnostic Delta & Untouched File Blast-Radius Analysis (Stage 4)**:
-  - Baseline diagnostic capture and differential settler (`DiagnosticSettler`) dynamically settling compiler diagnostics during active edits.
-  - Line-drift-resistant diagnostic fingerprinting that ignores line-shift offsets from preceding edits.
-  - High-confidence classification: newly introduced compiler/type regressions vs. pre-existing baseline errors.
-  - StructuralDiffer detecting deleted symbols, renamed functions, and modified signatures.
-  - DependencyGraph tracking file import linkages and finding untouched dependent callers affected by upstream signature changes.
-
-- **Critical Logic & Safety Watchdog (Stage 5)**:
-  - Structural AST and line-diff watchdog engine inspecting removed code context.
-  - 6 rule categories: Authentication, Authorization, Validation, Error Handling, Security, and Type Safety.
-  - Advanced false-positive protection: suppresses alerts on comments, string literals, test files, refactored logic, and renamed equivalents.
-  - Multi-language security detection including Python decorators (`@login_required`), Go error checks (`if err != nil`), PHP authorization gates, and CSRF / SQL injection guards.
-
-- **Professional Native VS Code UI (Stage 6)**:
-  - Centralized `FindingManager` with cross-engine deduplication by `uri:line:topic`, ranking issues by severity and confidence.
-  - Activity Bar shield icon with SVG adapting dynamically via `currentColor` for light, dark, and high-contrast themes.
-  - Native `TreeDataProvider` sidebar featuring `STATUS`, `CRITICAL`, `WARNINGS`, `REVIEW`, `LANGUAGES`, and `RECENT ACTIVITY`.
-  - Automatic auto-hiding of empty severity sections (`CRITICAL`, `WARNINGS`, `REVIEW`) when finding count is zero.
-  - One-click navigation to exact file and line ranges with cursor selection and rich Markdown hover tooltips.
-  - Dynamic Status Bar item reflecting `All Clear`, `Issues Detected`, `Analyzing...`, and `Baseline Settling...`.
-  - Native VS Code Problems panel publishing via `vscode.languages.createDiagnosticCollection('agentguard')`.
-
-- **Automatic Markdown Handoff & Optimization (Stage 7)**:
-  - Automatic `.vscode/agentguard-report.md` generation on finding updates with zero manual user interaction.
-  - Standardized AI coding agent handoff instruction prompt for ChatGPT, Claude Code, Cursor, Copilot, and Windsurf.
-  - Secret & environment sanitizer (`SecretSanitizer`) redacting AWS keys, GitHub tokens, JWTs, Bearer tokens, private keys, and passwords.
-  - Atomic report writes via hidden temp files and content hash change checks to prevent disk thrashing.
-  - Full performance optimization: cached Git status (2s TTL), module resolution caching, and 2MB file size safety caps.
-
-- **Release Validation & Open-Source Readiness (Stage 8)**:
-  - 6 end-to-end scenario test suites (Scenarios A through F) verifying multi-language, non-git, and multi-root workflows.
-  - Full GitHub repository standards: Apache-2.0 License, NOTICE attribution, Security policy, Contributing guide, Bug report and Feature request templates, Pull request template.
-  - Comprehensive README with complete language capability matrix, architecture diagrams, and usage guides.
-  - Clean VSIX package generation verified through `@vscode/vsce`.
+- Initial V1 release: core monitoring, language adapters, diagnostic delta, untouched file blast radius, watchdog, and basic tree UI.

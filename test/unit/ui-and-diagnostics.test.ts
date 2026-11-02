@@ -354,10 +354,13 @@ suite('Stage 6: Professional Native VS Code UI & Finding Manager', () => {
     assert.ok(statusBar.item.text.includes('All Clear'));
     assert.strictEqual(statusBar.item.backgroundColor, undefined);
 
-    // 2. Analyzing state
+    // 2. Analyzing / Checking state
     engineState = 'analyzing';
     onDidChangeEngineState.fire('analyzing');
-    assert.ok(statusBar.item.text.includes('Analyzing...'));
+    assert.ok(
+      statusBar.item.text.includes('Checking...') ||
+        statusBar.item.text.includes('Analyzing...')
+    );
 
     // 3. Back to ready with critical error finding
     engineState = 'ready';

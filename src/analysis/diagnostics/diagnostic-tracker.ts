@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { Disposable } from '../../core/disposable';
 import { ILogger } from '../../core/logger';
+import { GitService } from '../../git/git-service';
 import { LanguageAdapterRegistry } from '../../languages/adapter-registry';
 import { isIgnoredPath } from '../../utils/path-utils';
 import { WorkspaceManager } from '../../workspace/workspace-manager';
@@ -23,7 +24,8 @@ export class DiagnosticTracker extends Disposable {
     private readonly _workspaceManager: WorkspaceManager,
     private readonly _languageRegistry: LanguageAdapterRegistry,
     private readonly _logger: ILogger,
-    settler?: DiagnosticSettler
+    settler?: DiagnosticSettler,
+    private readonly _gitService?: GitService
   ) {
     super();
     this._settler = settler ?? this._register(new DiagnosticSettler(this._logger));
@@ -73,6 +75,10 @@ export class DiagnosticTracker extends Disposable {
 
       const fps: DiagnosticFingerprint[] = [];
       for (const diag of diags) {
+        // Prevent feedback loops: never ingest AgentGuard's own published diagnostics
+        if (diag.source && diag.source.toLowerCase() === 'agentguard') {
+          continue;
+        }
         fps.push(createDiagnosticFingerprint(uri, diag, root.uri));
         totalCount++;
       }
@@ -163,12 +169,27 @@ export class DiagnosticTracker extends Disposable {
           }
         }
 
+        const fileFps: DiagnosticFingerprint[] = [];
         for (const d of diags) {
-          currentFingerprints.push(createDiagnosticFingerprint(uri, d, rootUri));
+          if (d.source && d.source.toLowerCase() === 'agentguard') {
+            continue;
+          }
+          const fp = createDiagnosticFingerprint(uri, d, rootUri);
+          fileFps.push(fp);
+          currentFingerprints.push(fp);
         }
 
-        const baselineForFile = this._baselineFingerprints.get(uri.fsPath) ?? [];
-        baselineFingerprintsToCheck.push(...baselineForFile);
+        let baselineForFile = this._baselineFingerprints.get(uri.fsPath);
+        if (!baselineForFile && fileFps.length > 0) {
+          // If this file was unopened at startup and has diagnostics:
+          // Check if the file is clean/unmodified in Git. If it is clean, these are pre-existing baseline diagnostics!
+          const isClean = await this._isFileCleanInGit(uri, cancellationToken);
+          if (isClean) {
+            this._baselineFingerprints.set(uri.fsPath, fileFps);
+            baselineForFile = fileFps;
+          }
+        }
+        baselineFingerprintsToCheck.push(...(baselineForFile ?? []));
       }
     } else {
       // Full workspace delta analysis
@@ -183,6 +204,9 @@ export class DiagnosticTracker extends Disposable {
         }
 
         for (const d of diags) {
+          if (d.source && d.source.toLowerCase() === 'agentguard') {
+            continue;
+          }
           currentFingerprints.push(createDiagnosticFingerprint(uri, d, root.uri));
         }
       }
@@ -263,6 +287,36 @@ export class DiagnosticTracker extends Disposable {
       this._baselineFingerprints.set(uri.fsPath, fps);
     } else {
       this._baselineFingerprints.delete(uri.fsPath);
+    }
+  }
+
+  private async _isFileCleanInGit(
+    uri: vscode.Uri,
+    token?: vscode.CancellationToken
+  ): Promise<boolean> {
+    if (!this._gitService) {
+      return false;
+    }
+    try {
+      const root = this._workspaceManager.getRootForUri(uri);
+      if (!root) {
+        return false;
+      }
+      const isRepo = await this._gitService.isGitRepository(root.uri);
+      if (!isRepo) {
+        return false;
+      }
+      const status = await this._gitService.getStatusForRoot(root.uri, token);
+      if (!status) {
+        return false;
+      }
+      const targetPath = uri.fsPath.replace(/\\/g, '/');
+      const isChanged = status.changedFiles.some(
+        f => f.uri.fsPath.replace(/\\/g, '/') === targetPath
+      );
+      return !isChanged;
+    } catch {
+      return false;
     }
   }
 

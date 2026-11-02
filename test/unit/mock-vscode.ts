@@ -279,6 +279,10 @@ export class MockDiagnosticRelatedInformation {
   constructor(public readonly location: MockLocation, public readonly message: string) {}
 }
 
+export class MockHover {
+  constructor(public readonly contents: MockMarkdownString | MockMarkdownString[], public readonly range?: MockRange) {}
+}
+
 export class MockDiagnosticCollection {
   private readonly _diagnostics = new Map<string, MockDiagnostic[]>();
 
@@ -331,11 +335,13 @@ export const mockVscode = {
   Diagnostic: MockDiagnostic,
   Location: MockLocation,
   DiagnosticRelatedInformation: MockDiagnosticRelatedInformation,
+  Hover: MockHover,
   languages: {
     getDiagnostics: (_uri?: MockUri) => [] as Array<[MockUri, MockDiagnostic[]]>,
     createDiagnosticCollection: (name?: string) => new MockDiagnosticCollection(name ?? 'default'),
     onDidChangeDiagnostics: onDidChangeDiagnosticsEmitter.event,
     _fireDidChangeDiagnostics: (data: { uris: readonly MockUri[] }) => onDidChangeDiagnosticsEmitter.fire(data),
+    registerHoverProvider: (_selector: unknown, _provider: unknown) => ({ dispose: () => {} }),
   },
   FileType: {
     Unknown: 0,
@@ -433,15 +439,29 @@ export const mockVscode = {
     }),
     showInformationMessage: async (_msg: string) => undefined,
     showWarningMessage: async (_msg: string) => undefined,
+    showErrorMessage: async (_msg: string) => undefined,
     showTextDocument: async (_doc: unknown) => undefined,
     withProgress: async (_options: unknown, task: () => Promise<unknown>) => task(),
+    createTextEditorDecorationType: (_options: unknown) => ({ dispose: () => {} }),
+    registerWebviewViewProvider: (_viewId: string, _provider: unknown) => ({ dispose: () => {} }),
   },
   commands: {
-    registerCommand: (_command: string, _callback: (...args: unknown[]) => unknown) => ({
-      dispose: () => {
-        // no-op
-      },
-    }),
+    _registeredCommands: new Map<string, (...args: unknown[]) => unknown>(),
+    registerCommand: (command: string, callback: (...args: unknown[]) => unknown) => {
+      mockVscode.commands._registeredCommands.set(command, callback);
+      return {
+        dispose: () => {
+          mockVscode.commands._registeredCommands.delete(command);
+        },
+      };
+    },
+    executeCommand: async (command: string, ...args: unknown[]) => {
+      const handler = mockVscode.commands._registeredCommands.get(command);
+      if (handler) {
+        return handler(...args);
+      }
+      return undefined;
+    },
   },
 };
 

@@ -230,10 +230,19 @@ export class MarkdownReporter {
     lines.push(``);
     lines.push(`- **File Location**: \`${locationStr}\``);
     lines.push(`- **Category**: \`${finding.category}\``);
+    if (finding.evidenceClassification) {
+      lines.push(`- **Evidence Classification**: \`${finding.evidenceClassification}\``);
+    }
+    if (finding.ruleId) {
+      lines.push(`- **Rule ID**: \`${finding.ruleId}\``);
+    }
     lines.push(`- **Source Engine**: \`${finding.sourceEngine}\``);
     lines.push(`- **Description**: ${sanitizedMessage}`);
     lines.push(`- **Evidence**: \`${sanitizedEvidence}\``);
     lines.push(`- **Explanation**: ${sanitizedExplanation}`);
+    if (finding.suggestedRemediation) {
+      lines.push(`- **Suggested Remediation**: ${SecretSanitizer.sanitize(finding.suggestedRemediation)}`);
+    }
     lines.push(``);
 
     return lines.join('\n');

@@ -67,6 +67,8 @@ suite('Stage 7: Automatic Markdown Handoff & Safety Reports', () => {
         'analysis-incomplete': 0,
         'logic-risk': 0,
         'broken-dependency': 0,
+        'unused-code': 0,
+        'type-safety': 0,
       },
     };
 

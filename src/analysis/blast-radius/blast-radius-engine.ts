@@ -140,19 +140,83 @@ export class BlastRadiusEngine implements IAnalysisEngine {
         }));
       }
 
-      for (const link of dependentLinks) {
-        // Must be an untouched file (not part of the current modification batch)
-        if (changedPathSet.has(link.consumerUri.fsPath)) {
+      // Filter untouched dependent links (not part of the current modification batch)
+      const untouchedLinks = dependentLinks.filter(
+        l => !changedPathSet.has(l.consumerUri.fsPath)
+      );
+
+      const changedFileName = path.basename(changedUri.fsPath);
+
+      // 1. Dynamic imports
+      for (const link of untouchedLinks) {
+        if (link.isDynamic) {
+          findings.push({
+            id: `blast-dynamic-${link.consumerRelativePath}-${changedFileName}`,
+            ruleId: 'blast-radius.dynamic-import',
+            category: 'analysis-incomplete',
+            severity: 'warning',
+            confidence: 'low',
+            evidenceClassification: 'needs-review',
+            status: 'open',
+            title: `Dynamic Dependency on Modified File: ${changedFileName}`,
+            message: `Untouched file '${link.consumerRelativePath}' dynamically imports '${link.rawImport}' which changed.`,
+            evidence: `Dynamic import: '${link.rawImport}' on line ${link.line + 1}.`,
+            explanation:
+              'Dynamic module imports cannot be statically verified. Any removed or modified exports in the target file may cause runtime errors.',
+            location: {
+              filePath: link.consumerRelativePath,
+              uri: link.consumerUri,
+              range: new vscode.Range(link.line, 0, link.line, 80),
+            },
+            relatedLocations: [
+              {
+                filePath: path.basename(changedUri.fsPath),
+                uri: changedUri,
+              },
+            ],
+            suggestedRemediation: 'Convert to static import or verify runtime exports.',
+            sourceEngine: this.id,
+            timestamp: Date.now(),
+          });
+        }
+      }
+
+      // 2. Evaluate symbol changes with root-cause grouping
+      for (const change of changes) {
+        if (change.changeKind === 'added') {
           continue;
         }
 
-        const linkFindings = this._evaluateDependentImpact(
-          changedUri,
-          changes,
-          link,
-          newDiagnosticsOnUntouched
+        const matchingLinks = untouchedLinks.filter(
+          l =>
+            !l.isDynamic &&
+            (l.importedSymbols.includes('*') || l.importedSymbols.includes(change.name))
         );
-        findings.push(...linkFindings);
+
+        if (matchingLinks.length === 0) {
+          continue;
+        }
+
+        if (matchingLinks.length === 1) {
+          // Exactly 1 consumer file - emit single finding
+          const link = matchingLinks[0]!;
+          const singleFindings = this._evaluateDependentImpact(
+            changedUri,
+            [change],
+            link,
+            newDiagnosticsOnUntouched
+          );
+          findings.push(...singleFindings);
+        } else {
+          // Multiple consumers - group under single genuine root cause
+          const groupedFinding = this._evaluateGroupedImpact(
+            changedUri,
+            change,
+            matchingLinks,
+            newDiagnosticsOnUntouched
+          );
+          findings.push(groupedFinding);
+        }
       }
     }
 
@@ -161,6 +225,114 @@ export class BlastRadiusEngine implements IAnalysisEngine {
     );
 
     return findings;
+  }
+
+  private _evaluateGroupedImpact(
+    changedUri: vscode.Uri,
+    change: SymbolChange,
+    links: readonly DependencyLink[],
+    newDiagnostics: readonly { fileUri: vscode.Uri; message: string; line: number }[]
+  ): Finding {
+    const changedFileName = path.basename(changedUri.fsPath);
+    const uniqueFiles = Array.from(new Set(links.map(l => l.consumerRelativePath)));
+    const primaryLink = links[0]!;
+
+    const correlatedDiag = newDiagnostics.find(d =>
+      links.some(l => l.consumerUri.fsPath === d.fileUri.fsPath)
+    );
+
+    const relatedLocations = [
+      {
+        filePath: changedFileName,
+        uri: changedUri,
+      },
+      ...links.slice(1).map(l => ({
+        filePath: l.consumerRelativePath,
+        uri: l.consumerUri,
+        range: new vscode.Range(l.line, 0, l.line, 80),
+      })),
+    ];
+
+    const consumerListStr = links
+      .map(l => `'${l.consumerRelativePath}' on line ${l.line + 1}`)
+      .join(', ');
+
+    if (change.changeKind === 'deleted') {
+      return {
+        id: `blast-root-${changedFileName}-deleted-${change.name}`,
+        ruleId: 'blast-radius.deleted-symbol',
+        category: 'potentially-broken-contract',
+        severity: 'error',
+        confidence: 'high',
+        evidenceClassification: correlatedDiag ? 'confirmed-regression' : 'structural-regression',
+        status: 'open',
+        verificationState: 'verified-breaking',
+        title: `Broken Contract: Removed Export '${change.name}' (${links.length} references across ${uniqueFiles.length} files affected)`,
+        message: `Export '${change.name}' was removed from '${changedFileName}'. ${links.length} references across ${uniqueFiles.length} untouched file(s) still import it.`,
+        evidence: `Exported symbol '${change.name}' deleted in provider '${changedFileName}'. Untouched consumers: ${consumerListStr}.`,
+        explanation:
+          'Removing an exported symbol without updating downstream consuming files breaks the interface contract across multiple untouched files in the project.',
+        location: {
+          filePath: primaryLink.consumerRelativePath,
+          uri: primaryLink.consumerUri,
+          range: new vscode.Range(primaryLink.line, 0, primaryLink.line, 80),
+        },
+        relatedLocations,
+        suggestedRemediation: `Restore export '${change.name}' in '${changedFileName}' or update consumers: ${uniqueFiles.join(', ')}.`,
+        sourceEngine: this.id,
+        timestamp: Date.now(),
+      };
+    } else if (change.changeKind === 'signature-changed') {
+      return {
+        id: `blast-root-${changedFileName}-sig-${change.name}`,
+        ruleId: 'blast-radius.signature-changed',
+        category: 'potentially-broken-contract',
+        severity: correlatedDiag ? 'error' : 'warning',
+        confidence: 'high',
+        evidenceClassification: 'structural-regression',
+        status: 'open',
+        verificationState: correlatedDiag ? 'verified-breaking' : 'unverified',
+        title: `Contract Mismatch: '${change.name}' Signature Changed (${links.length} callers across ${uniqueFiles.length} files affected)`,
+        message: `The signature of '${change.name}' changed in '${changedFileName}'. ${links.length} untouched call sites across ${uniqueFiles.length} files may be passing incompatible arguments.`,
+        evidence: `${change.details ?? 'Signature altered'}. Untouched callers: ${consumerListStr}.`,
+        explanation:
+          'Changing function parameters or shapes without updating untouched callers introduces logic regressions or type mismatches across dependent files.',
+        location: {
+          filePath: primaryLink.consumerRelativePath,
+          uri: primaryLink.consumerUri,
+          range: new vscode.Range(primaryLink.line, 0, primaryLink.line, 80),
+        },
+        relatedLocations,
+        suggestedRemediation: `Update call sites in ${uniqueFiles.join(', ')} to match new '${change.name}' signature.`,
+        sourceEngine: this.id,
+        timestamp: Date.now(),
+      };
+    } else {
+      return {
+        id: `blast-root-${changedFileName}-renamed-${change.name}`,
+        ruleId: 'blast-radius.renamed-symbol',
+        category: 'unresolved-reference',
+        severity: 'error',
+        confidence: 'high',
+        evidenceClassification: 'structural-regression',
+        status: 'open',
+        verificationState: 'verified-breaking',
+        title: `Unresolved Reference: Symbol '${change.name}' Renamed (${links.length} imports across ${uniqueFiles.length} files affected)`,
+        message: `Symbol '${change.name}' was renamed in '${changedFileName}'. ${links.length} imports in ${uniqueFiles.length} untouched files still reference the old name.`,
+        evidence: `${change.details ?? 'Renamed'}. Untouched references: ${consumerListStr}.`,
+        explanation:
+          'Renaming a symbol in a provider without refactoring consumer imports leaves untouched call sites pointing to non-existent exports.',
+        location: {
+          filePath: primaryLink.consumerRelativePath,
+          uri: primaryLink.consumerUri,
+          range: new vscode.Range(primaryLink.line, 0, primaryLink.line, 80),
+        },
+        relatedLocations,
+        suggestedRemediation: `Update imports in ${uniqueFiles.join(', ')} to reference the renamed symbol.`,
+        sourceEngine: this.id,
+        timestamp: Date.now(),
+      };
+    }
   }
 
   private _evaluateDependentImpact(
@@ -181,9 +353,12 @@ export class BlastRadiusEngine implements IAnalysisEngine {
     if (link.isDynamic) {
       findings.push({
         id: `blast-dynamic-${link.consumerRelativePath}-${changedFileName}`,
+        ruleId: 'blast-radius.dynamic-import',
         category: 'analysis-incomplete',
         severity: 'warning',
         confidence: 'low',
+        evidenceClassification: 'needs-review',
+        status: 'open',
         title: `Dynamic Dependency on Modified File: ${changedFileName}`,
         message: `Untouched file '${link.consumerRelativePath}' dynamically imports '${link.rawImport}' which changed.`,
         evidence: `Dynamic import: '${link.rawImport}' on line ${link.line + 1}.`,
@@ -194,6 +369,13 @@ export class BlastRadiusEngine implements IAnalysisEngine {
           uri: link.consumerUri,
           range: new vscode.Range(link.line, 0, link.line, 80),
         },
+        relatedLocations: [
+          {
+            filePath: path.basename(changedUri.fsPath),
+            uri: changedUri,
+          },
+        ],
+        suggestedRemediation: 'Convert to static import or verify runtime exports.',
         sourceEngine: this.id,
         timestamp: Date.now(),
       });
@@ -217,9 +399,13 @@ export class BlastRadiusEngine implements IAnalysisEngine {
 
         findings.push({
           id: `blast-deleted-${link.consumerRelativePath}-${change.name}`,
+          ruleId: 'blast-radius.deleted-symbol',
           category: 'potentially-broken-contract',
           severity: 'error',
           confidence,
+          evidenceClassification: correlatedDiagnostic ? 'confirmed-regression' : 'structural-regression',
+          status: 'open',
+          verificationState: 'verified-breaking',
           title: `Broken Contract: Removed Symbol '${change.name}' Used in Untouched File`,
           message: `Symbol '${change.name}' was removed from '${changedFileName}', but untouched file '${link.consumerRelativePath}' still imports it.`,
           evidence: `Exported symbol '${change.name}' deleted in provider '${changedFileName}'. Consumer '${link.consumerRelativePath}' imports it on line ${link.line + 1}.${diagEvidence}`,
@@ -230,6 +416,13 @@ export class BlastRadiusEngine implements IAnalysisEngine {
             uri: link.consumerUri,
             range: new vscode.Range(link.line, 0, link.line, 80),
           },
+          relatedLocations: [
+            {
+              filePath: path.basename(changedUri.fsPath),
+              uri: changedUri,
+            },
+          ],
+          suggestedRemediation: `Restore export '${change.name}' in '${changedFileName}' or update consumer '${link.consumerRelativePath}'.`,
           sourceEngine: this.id,
           timestamp: Date.now(),
         });
@@ -239,9 +432,13 @@ export class BlastRadiusEngine implements IAnalysisEngine {
 
         findings.push({
           id: `blast-sig-${link.consumerRelativePath}-${change.name}`,
+          ruleId: 'blast-radius.signature-changed',
           category: 'potentially-broken-contract',
           severity,
           confidence,
+          evidenceClassification: 'structural-regression',
+          status: 'open',
+          verificationState: correlatedDiagnostic ? 'verified-breaking' : 'unverified',
           title: `Contract Mismatch: '${change.name}' Signature Changed`,
           message: `The signature of '${change.name}' changed in '${changedFileName}'. Untouched caller '${link.consumerRelativePath}' may be passing incompatible arguments.`,
           evidence: `${change.details ?? 'Signature altered'}. Consumer imports '${change.name}' on line ${link.line + 1}.`,
@@ -252,15 +449,26 @@ export class BlastRadiusEngine implements IAnalysisEngine {
             uri: link.consumerUri,
             range: new vscode.Range(link.line, 0, link.line, 80),
           },
+          relatedLocations: [
+            {
+              filePath: path.basename(changedUri.fsPath),
+              uri: changedUri,
+            },
+          ],
+          suggestedRemediation: `Update call sites in '${link.consumerRelativePath}' to match new '${change.name}' signature.`,
           sourceEngine: this.id,
           timestamp: Date.now(),
         });
       } else if (change.changeKind === 'renamed') {
         findings.push({
           id: `blast-renamed-${link.consumerRelativePath}-${change.name}`,
+          ruleId: 'blast-radius.renamed-symbol',
           category: 'unresolved-reference',
           severity: 'error',
           confidence: 'high',
+          evidenceClassification: 'structural-regression',
+          status: 'open',
+          verificationState: 'verified-breaking',
           title: `Unresolved Reference: Symbol '${change.name}' Renamed in Provider`,
           message: `Symbol '${change.name}' was renamed in '${changedFileName}', leaving an unresolved reference in untouched file '${link.consumerRelativePath}'.`,
           evidence: `${change.details ?? 'Renamed'}. Untouched file references old name on line ${link.line + 1}.`,
@@ -271,6 +479,13 @@ export class BlastRadiusEngine implements IAnalysisEngine {
             uri: link.consumerUri,
             range: new vscode.Range(link.line, 0, link.line, 80),
           },
+          relatedLocations: [
+            {
+              filePath: path.basename(changedUri.fsPath),
+              uri: changedUri,
+            },
+          ],
+          suggestedRemediation: `Update import and call sites in '${link.consumerRelativePath}' to reference the renamed symbol.`,
           sourceEngine: this.id,
           timestamp: Date.now(),
         });
@@ -281,9 +496,13 @@ export class BlastRadiusEngine implements IAnalysisEngine {
     if (findings.length === 0 && changes.some(c => c.changeKind !== 'added')) {
       findings.push({
         id: `blast-affected-${link.consumerRelativePath}-${changedFileName}`,
+        ruleId: 'blast-radius.dependent-review',
         category: 'potentially-affected-dependency',
         severity: 'info',
         confidence: 'medium',
+        evidenceClassification: 'needs-review',
+        status: 'open',
+        verificationState: 'unverified',
         title: `Potentially Affected Untouched File: ${path.basename(link.consumerRelativePath)}`,
         message: `Untouched file depends on '${changedFileName}' which underwent structural changes.`,
         evidence: `Direct dependency link: imports '${link.rawImport}' on line ${link.line + 1}.`,
@@ -294,6 +513,13 @@ export class BlastRadiusEngine implements IAnalysisEngine {
           uri: link.consumerUri,
           range: new vscode.Range(link.line, 0, link.line, 80),
         },
+        relatedLocations: [
+          {
+            filePath: path.basename(changedUri.fsPath),
+            uri: changedUri,
+          },
+        ],
+        suggestedRemediation: `Review '${link.consumerRelativePath}' to verify compatibility with changes in '${changedFileName}'.`,
         sourceEngine: this.id,
         timestamp: Date.now(),
       });

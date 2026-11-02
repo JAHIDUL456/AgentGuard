@@ -2,7 +2,7 @@
   "name": "agentguard",
   "displayName": "AgentGuard",
   "description": "Offline-first, zero-configuration codebase safety extension. Catches silent breaks and flags hidden logic risks automatically.",
-  "version": "0.1.0",
+  "version": "2.0.0",
   "publisher": "swe-jahid-agentguard",
   "author": "Md. Jahidul Islam",
   "license": "Apache-2.0",
@@ -43,13 +43,28 @@
           "title": "AgentGuard",
           "icon": "resources/icons/agentguard-shield.svg"
         }
+      ],
+      "panel": [
+        {
+          "id": "agentguard-panel",
+          "title": "AgentGuard",
+          "icon": "resources/icons/agentguard-shield.svg"
+        }
       ]
     },
     "views": {
       "agentguard-explorer": [
         {
+          "type": "webview",
           "id": "agentguard.findingsView",
-          "name": "Codebase Safety"
+          "name": "AgentGuard"
+        }
+      ],
+      "agentguard-panel": [
+        {
+          "type": "webview",
+          "id": "agentguard.issuesView",
+          "name": "AgentGuard — Codebase Issues"
         }
       ]
     },
@@ -78,29 +93,79 @@
         "command": "agentguard.focusSidebar",
         "title": "AgentGuard: Focus Sidebar View",
         "icon": "$(shield)"
+      },
+      {
+        "command": "agentguard.copyFindingFixPrompt",
+        "title": "AgentGuard: Copy AI Fix Prompt",
+        "icon": "$(sparkle)"
+      },
+      {
+        "command": "agentguard.exportJsonReport",
+        "title": "AgentGuard: Export Findings as JSON",
+        "icon": "$(json)"
+      },
+      {
+        "command": "agentguard.openProblemsPanel",
+        "title": "AgentGuard: Open Problems Panel",
+        "icon": "$(list-unordered)"
+      },
+      {
+        "command": "agentguard.toggleMonitoring",
+        "title": "AgentGuard: Pause/Resume Monitoring",
+        "icon": "$(play-circle)"
+      },
+      {
+        "command": "agentguard.recheckFinding",
+        "title": "AgentGuard: Recheck Issue",
+        "icon": "$(sync)"
+      },
+      {
+        "command": "agentguard.ignoreFinding",
+        "title": "AgentGuard: Ignore Issue",
+        "icon": "$(eye-closed)"
+      },
+      {
+        "command": "agentguard.showFindingDiff",
+        "title": "AgentGuard: View Change Diff",
+        "icon": "$(diff)"
+      },
+      {
+        "command": "agentguard.applyQuickFix",
+        "title": "AgentGuard: Apply Available Quick Fix",
+        "icon": "$(wrench)"
+      },
+      {
+        "command": "agentguard.tryInteractiveDemo",
+        "title": "AgentGuard: Try Interactive Demo",
+        "icon": "$(play)"
       }
     ],
     "menus": {
       "view/title": [
         {
           "command": "agentguard.scanWorkspace",
-          "when": "view == agentguard.findingsView",
+          "when": "view == agentguard.findingsView || view == agentguard.issuesView",
           "group": "navigation@1"
         },
         {
-          "command": "agentguard.generateReport",
-          "when": "view == agentguard.findingsView",
+          "command": "agentguard.toggleMonitoring",
+          "when": "view == agentguard.findingsView || view == agentguard.issuesView",
           "group": "navigation@2"
         },
         {
-          "command": "agentguard.showOutput",
-          "when": "view == agentguard.findingsView",
+          "command": "agentguard.generateReport",
+          "when": "view == agentguard.findingsView || view == agentguard.issuesView",
           "group": "navigation@3"
         },
         {
-          "command": "agentguard.clearFindings",
-          "when": "view == agentguard.findingsView",
+          "command": "agentguard.exportJsonReport",
+          "when": "view == agentguard.findingsView || view == agentguard.issuesView",
           "group": "navigation@4"
+        },
+        {
+          "command": "agentguard.clearFindings",
+          "when": "view == agentguard.findingsView || view == agentguard.issuesView",
+          "group": "navigation@5"
         }
       ]
     },
@@ -111,6 +176,11 @@
           "type": "boolean",
           "default": true,
           "description": "Enable or disable AgentGuard automated codebase safety monitoring."
+        },
+        "agentguard.autoReport": {
+          "type": "boolean",
+          "default": false,
+          "description": "Automatically write .vscode/agentguard-report.md whenever findings change. Disabled by default to prevent workspace pollution."
         },
         "agentguard.logLevel": {
           "type": "string",

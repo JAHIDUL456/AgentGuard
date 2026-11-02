@@ -5,6 +5,7 @@ import { ILogger } from '../../core/logger';
 import { LanguageAdapterRegistry } from '../../languages/adapter-registry';
 import { isIgnoredPath } from '../../utils/path-utils';
 import { WorkspaceManager } from '../../workspace/workspace-manager';
+import { TypeScriptScopeAnalyzer } from '../scope/typescript-scope-analyzer';
 import { DependencyLink } from './blast-types';
 
 export class DependencyGraph {
@@ -12,6 +13,7 @@ export class DependencyGraph {
   private readonly _consumerLinks = new Map<string, DependencyLink[]>();
   // Module resolution cache to avoid redundant stat probes on untouched consumer files
   private readonly _resolutionCache = new Map<string, vscode.Uri | undefined>();
+  private readonly _tsScopeAnalyzer = new TypeScriptScopeAnalyzer();
 
   constructor(
     private readonly _workspaceManager: WorkspaceManager,
@@ -58,14 +60,75 @@ export class DependencyGraph {
       return [];
     }
 
-    const rawImports = await adapter.extractDependencies(fileUri, fileContent);
     const links: DependencyLink[] = [];
-
     const lines = fileContent.split('\n');
+
+    // For TypeScript and JavaScript, use AST scope analysis for 100% accurate import/symbol resolution
+    if (adapter.id === 'typescript' || adapter.id === 'javascript') {
+      try {
+        const scopeResult = this._tsScopeAnalyzer.analyze(fileUri, fileContent);
+        const importsBySpecifier = new Map<string, { symbols: Set<string>; line: number; isDynamic: boolean }>();
+
+        for (const imp of scopeResult.importedSymbols) {
+          let entry = importsBySpecifier.get(imp.moduleSpecifier);
+          if (!entry) {
+            entry = { symbols: new Set<string>(), line: imp.range.start.line, isDynamic: false };
+            importsBySpecifier.set(imp.moduleSpecifier, entry);
+          }
+          if (imp.isNamespace || imp.isDefault) {
+            entry.symbols.add('*');
+          } else {
+            entry.symbols.add(imp.importedName);
+          }
+        }
+
+        // Also incorporate any require() or dynamic imports extracted by adapter
+        const rawImports = await adapter.extractDependencies(fileUri, fileContent);
+        for (const rawImport of rawImports) {
+          if (!importsBySpecifier.has(rawImport)) {
+            importsBySpecifier.set(rawImport, {
+              symbols: new Set<string>(['*']),
+              line: this._findImportLine(rawImport, lines),
+              isDynamic: this._isDynamicImport(rawImport),
+            });
+          }
+        }
+
+        for (const [specifier, info] of importsBySpecifier) {
+          const isDynamic = info.isDynamic || this._isDynamicImport(specifier);
+          let resolvedUri = this._resolveModuleUri(fileUri, specifier, root.uri);
+          if (!resolvedUri && isDynamic) {
+            resolvedUri = fileUri;
+          }
+          if (resolvedUri) {
+            const relativeConsumer = path
+              .relative(root.uri.fsPath, fileUri.fsPath)
+              .replace(/\\/g, '/');
+
+            links.push({
+              consumerUri: fileUri,
+              consumerRelativePath: relativeConsumer,
+              providerUri: resolvedUri,
+              importedSymbols: Array.from(info.symbols),
+              isDynamic,
+              rawImport: specifier,
+              line: info.line,
+            });
+          }
+        }
+
+        this._consumerLinks.set(fileUri.fsPath, links);
+        return links;
+      } catch (err) {
+        this._logger.debug(`AST dependency extraction failed for ${fileUri.fsPath}, falling back:`, err);
+      }
+    }
+
+    const rawImports = await adapter.extractDependencies(fileUri, fileContent);
 
     for (const rawImport of rawImports) {
       const isDynamic = this._isDynamicImport(rawImport);
-      const importedSymbols = this._extractImportedSymbols(rawImport, lines);
+      const importedSymbols = this._extractImportedSymbols(rawImport, lines, fileContent);
       const line = this._findImportLine(rawImport, lines);
 
       let resolvedUri = this._resolveModuleUri(fileUri, rawImport, root.uri);
@@ -249,8 +312,35 @@ export class DependencyGraph {
     );
   }
 
-  private _extractImportedSymbols(rawImport: string, lines: readonly string[]): string[] {
+  private _extractImportedSymbols(
+    rawImport: string,
+    lines: readonly string[],
+    fullContent?: string
+  ): string[] {
     const symbols: string[] = [];
+
+    // Check multiline imports if full content is provided
+    if (fullContent && fullContent.includes(rawImport)) {
+      const escapedImport = rawImport.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const multilineNamed = new RegExp(
+        `import\\s*\\{([\\s\\S]*?)\\}\\s*from\\s*['"]${escapedImport}['"]`
+      );
+      const match = fullContent.match(multilineNamed);
+      if (match && match[1]) {
+        const parts = match[1].split(',');
+        for (const part of parts) {
+          const trimmed = part.trim();
+          if (!trimmed) {
+            continue;
+          }
+          const asMatch = trimmed.match(/^([a-zA-Z0-9_$]+)(?:\s+as\s+[a-zA-Z0-9_$]+)?$/);
+          if (asMatch && asMatch[1]) {
+            symbols.push(asMatch[1]);
+          }
+        }
+        return symbols;
+      }
+    }
 
     // Find the import statement in lines
     for (const line of lines) {

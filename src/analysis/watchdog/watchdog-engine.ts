@@ -169,9 +169,12 @@ export class LogicWatchdogEngine implements IAnalysisEngine {
 
     return {
       id: `watchdog-${candidate.ruleId}-${candidate.category}-${uri.fsPath}-${candidate.line}`,
+      ruleId: candidate.ruleId,
       category: 'logic-risk',
       severity,
       confidence: candidate.confidence,
+      evidenceClassification: candidate.severity === 'critical' ? 'confirmed-regression' : 'needs-review',
+      status: 'open',
       title: candidate.title,
       message: candidate.message,
       evidence: candidate.evidence,
@@ -186,6 +189,7 @@ export class LogicWatchdogEngine implements IAnalysisEngine {
           80
         ),
       },
+      suggestedRemediation: 'Review removed security or logic block to confirm whether this omission was intentional.',
       sourceEngine: this.id,
       timestamp: Date.now(),
       metadata: {

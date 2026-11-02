@@ -2,7 +2,13 @@ import * as vscode from 'vscode';
 
 export type ChangeKind = 'created' | 'modified' | 'deleted' | 'renamed';
 
-export type EventSource = 'document' | 'save' | 'watcher' | 'rename' | 'workspace';
+export type EventSource =
+  | 'document'
+  | 'save'
+  | 'watcher'
+  | 'rename'
+  | 'workspace'
+  | 'diagnostics';
 
 export interface FileChangeEvent {
   readonly uri: vscode.Uri;

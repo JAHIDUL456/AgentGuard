@@ -1,6 +1,44 @@
 import { StructuralNode } from '../../languages/types';
 import { SymbolChange } from './blast-types';
 
+/**
+ * Computes Levenshtein similarity ratio between two symbol names in range [0, 1].
+ */
+export function computeStringSimilarity(a: string, b: string): number {
+  if (a === b) {
+    return 1;
+  }
+  if (!a || !b) {
+    return 0;
+  }
+  const longer = a.length > b.length ? a : b;
+  const shorter = a.length > b.length ? b : a;
+  if (longer.length === 0) {
+    return 1.0;
+  }
+
+  const costs: number[] = [];
+  for (let i = 0; i <= longer.length; i++) {
+    let lastValue = i;
+    for (let j = 0; j <= shorter.length; j++) {
+      if (i === 0) {
+        costs[j] = j;
+      } else if (j > 0) {
+        let newValue = costs[j - 1]!;
+        if (longer.charAt(i - 1) !== shorter.charAt(j - 1)) {
+          newValue = Math.min(Math.min(newValue, lastValue), costs[j]!) + 1;
+        }
+        costs[j - 1] = lastValue;
+        lastValue = newValue;
+      }
+    }
+    if (i > 0) {
+      costs[shorter.length] = lastValue;
+    }
+  }
+  return (longer.length - costs[shorter.length]!) / longer.length;
+}
+
 export class StructuralDiffer {
   /**
    * Compares baseline/previous AST structural nodes against current nodes
@@ -71,7 +109,7 @@ export class StructuralDiffer {
       }
 
       // If no match by exact details, match by same kind if parameter signature matches
-      // or if names share common prefix/suffix within 3 lines
+      // or if names share high string similarity (edit distance ratio >= 0.8) within 3 lines
       if (matchedIdx < 0 && prev.name.length >= 3) {
         matchedIdx = remainingCurr.findIndex(c => {
           if (c.kind !== prev.kind) {
@@ -85,14 +123,10 @@ export class StructuralDiffer {
             }
           }
           if (Math.abs(c.startLine - prev.startLine) <= 3) {
-            const suffixLen = Math.min(4, Math.floor(prev.name.length / 2));
-            const hasCommonSuffix =
-              suffixLen >= 3 &&
-              prev.name.slice(-suffixLen).toLowerCase() === c.name.slice(-suffixLen).toLowerCase();
-            const hasCommonPrefix =
-              suffixLen >= 3 &&
-              prev.name.slice(0, suffixLen).toLowerCase() === c.name.slice(0, suffixLen).toLowerCase();
-            return hasCommonSuffix || hasCommonPrefix;
+            // Require high overall similarity (>= 80%) to avoid false positives on common prefixes
+            // such as 'Graph' vs 'GraphQLInt' or 'User' vs 'UserService'
+            const similarity = computeStringSimilarity(prev.name, c.name);
+            return similarity >= 0.8;
           }
           return false;
         });

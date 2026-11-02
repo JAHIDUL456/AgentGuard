@@ -185,6 +185,30 @@ export class ChangeMonitor extends Disposable implements IChangeMonitor {
         this._handleCandidate(uri, 'deleted', 'watcher');
       })
     );
+
+    // 7. Relevant language-service diagnostic updates (excluding AgentGuard's own diagnostics)
+    if (typeof vscode.languages.onDidChangeDiagnostics === 'function') {
+      this._register(
+        vscode.languages.onDidChangeDiagnostics(event => {
+          if (!this._enabled) {
+            return;
+          }
+          for (const uri of event.uris) {
+            if (uri.scheme !== 'file') {
+              continue;
+            }
+            // Check if updated diagnostics only contain AgentGuard's own diagnostics to avoid loops
+            const diags = vscode.languages.getDiagnostics(uri);
+            const hasExternalDiags = diags.some(
+              d => !d.source || d.source.toLowerCase() !== 'agentguard'
+            );
+            if (hasExternalDiags || diags.length === 0) {
+              this._handleCandidate(uri, 'modified', 'diagnostics');
+            }
+          }
+        })
+      );
+    }
   }
 
   private _handleCandidate(

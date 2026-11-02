@@ -12,8 +12,12 @@ import { GitService } from './git/git-service';
 import { LanguageAdapterRegistry } from './languages/adapter-registry';
 import { ChangeMonitor } from './monitoring/change-monitor';
 import { AutoReportManager } from './reporting/auto-reporter';
+import { InteractiveDemoManager } from './demo/interactive-demo';
 import { MarkdownReporter } from './reporting/markdown-reporter';
 import { CommandHandler } from './ui/commands/command-handler';
+import { FindingHoverProvider } from './ui/hover/finding-hover-provider';
+import { IssuesPanelProvider } from './ui/panel/issues-panel-provider';
+import { SidebarViewProvider } from './ui/sidebar/sidebar-view-provider';
 import { StatusBarManager } from './ui/status-bar/status-bar-manager';
 import { AgentGuardTreeProvider } from './ui/tree/agentguard-tree-provider';
 import { WorkspaceManager } from './workspace/workspace-manager';
@@ -34,6 +38,9 @@ export interface AgentGuardApi {
   readonly autoReporter: AutoReportManager;
   readonly markdownReporter: MarkdownReporter;
   readonly treeProvider: AgentGuardTreeProvider;
+  readonly sidebarProvider: SidebarViewProvider;
+  readonly issuesPanelProvider: IssuesPanelProvider;
+  readonly demoManager: InteractiveDemoManager;
   readonly statusBarManager: StatusBarManager;
   readonly logger: ILogger;
 }
@@ -74,7 +81,9 @@ export async function activate(
   const diagnosticTracker = new DiagnosticTracker(
     workspaceManager,
     languageRegistry,
-    logger
+    logger,
+    undefined,
+    gitService
   );
   context.subscriptions.push(diagnosticTracker);
 
@@ -113,55 +122,41 @@ export async function activate(
   );
   context.subscriptions.push(engine);
 
-  // UI Providers
+  // UI Providers: Professional Sidebar Webview & Dedicated Bottom Panel
+  const sidebarProvider = new SidebarViewProvider(
+    context.extensionUri,
+    engine,
+    workspaceManager,
+    findingManager,
+    changeMonitor
+  );
+  context.subscriptions.push(
+    vscode.window.registerWebviewViewProvider(
+      SidebarViewProvider.viewType,
+      sidebarProvider
+    )
+  );
+
+  const issuesPanelProvider = new IssuesPanelProvider(
+    context.extensionUri,
+    engine,
+    workspaceManager,
+    findingManager,
+    changeMonitor
+  );
+  context.subscriptions.push(
+    vscode.window.registerWebviewViewProvider(
+      IssuesPanelProvider.viewType,
+      issuesPanelProvider
+    )
+  );
+
   const treeProvider = new AgentGuardTreeProvider(
     engine,
     workspaceManager,
     findingManager,
     languageRegistry
   );
-  const treeView = vscode.window.createTreeView('agentguard.findingsView', {
-    treeDataProvider: treeProvider,
-    showCollapseAll: true,
-  });
-  context.subscriptions.push(treeView);
-
-  const updateTreeViewStatus = () => {
-    if (!workspaceManager.hasWorkspace()) {
-      treeView.description = 'Waiting';
-      treeView.badge = undefined;
-      return;
-    }
-
-    const allFindings = findingManager.getAll();
-    const critical = allFindings.filter(f => f.severity === 'error');
-    const warnings = allFindings.filter(f => f.severity === 'warning');
-    const urgentCount = critical.length + warnings.length;
-
-    if (urgentCount > 0) {
-      treeView.badge = {
-        value: urgentCount,
-        tooltip: `${critical.length} Critical, ${warnings.length} Warning issue(s) detected`,
-      };
-      treeView.description = `${urgentCount} Issue${urgentCount === 1 ? '' : 's'}`;
-    } else if (allFindings.length > 0) {
-      treeView.badge = {
-        value: allFindings.length,
-        tooltip: `${allFindings.length} Review item(s)`,
-      };
-      treeView.description = `${allFindings.length} Review`;
-    } else {
-      treeView.badge = undefined;
-      treeView.description = 'All Clear';
-    }
-  };
-
-  context.subscriptions.push(
-    findingManager.onDidChangeFindings(updateTreeViewStatus),
-    engine.onDidChangeState(updateTreeViewStatus),
-    workspaceManager.onDidChangeRoots(updateTreeViewStatus)
-  );
-  updateTreeViewStatus();
 
   const statusBarManager = new StatusBarManager(
     engine,
@@ -178,24 +173,44 @@ export async function activate(
   );
   context.subscriptions.push(nativeDiagnosticsPublisher);
 
+  // Editor Hover Provider (with Copy AI Fix Prompt & Open in Panel)
+  const hoverProvider = new FindingHoverProvider(findingManager);
+  context.subscriptions.push(
+    vscode.languages.registerHoverProvider({ scheme: 'file' }, hoverProvider)
+  );
+
   // Reporting & Commands
   const markdownReporter = new MarkdownReporter();
+  const autoReportEnabled = config.get<boolean>('autoReport', false);
   const autoReporter = new AutoReportManager(
     engine,
     workspaceManager,
     findingManager,
     languageRegistry,
     markdownReporter,
-    logger
+    logger,
+    400,
+    autoReportEnabled
   );
   context.subscriptions.push(autoReporter);
+
+  const demoManager = new InteractiveDemoManager(
+    workspaceManager,
+    findingManager,
+    languageRegistry,
+    gitService,
+    logger
+  );
 
   const commandHandler = new CommandHandler(
     engine,
     workspaceManager,
     findingManager,
     markdownReporter,
-    logger
+    logger,
+    changeMonitor,
+    issuesPanelProvider,
+    demoManager
   );
   context.subscriptions.push(commandHandler);
 
@@ -214,6 +229,12 @@ export async function activate(
           .getConfiguration('agentguard')
           .get<boolean>('enabled', true);
         changeMonitor.setEnabled(enabled);
+      }
+      if (e.affectsConfiguration('agentguard.autoReport')) {
+        const autoReport = vscode.workspace
+          .getConfiguration('agentguard')
+          .get<boolean>('autoReport', false);
+        autoReporter.setAutoWrite(autoReport);
       }
     })
   );
@@ -242,6 +263,9 @@ export async function activate(
     autoReporter,
     markdownReporter,
     treeProvider,
+    sidebarProvider,
+    issuesPanelProvider,
+    demoManager,
     statusBarManager,
     logger,
   };

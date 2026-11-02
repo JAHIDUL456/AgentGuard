@@ -7,7 +7,8 @@ export type WatchdogCategory =
   | 'validation'
   | 'error-handling'
   | 'security'
-  | 'type-safety';
+  | 'type-safety'
+  | 'silent-regression';
 
 export type WatchdogRuleSeverity =
   | 'critical'

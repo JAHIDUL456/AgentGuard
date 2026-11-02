@@ -293,6 +293,8 @@ suite('Stage 7: Performance Benchmarks & Reliability Audit', function () {
         'analysis-incomplete': 0,
         'logic-risk': 30,
         'broken-dependency': 0,
+        'unused-code': 0,
+        'type-safety': 0,
       },
     };
 

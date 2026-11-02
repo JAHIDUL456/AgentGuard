@@ -37,12 +37,15 @@ export class JavaScriptAdapter extends BaseLanguageAdapter {
     content: string
   ): Promise<StructuralAnalysisResult> {
     const fileName = path.basename(uri.fsPath);
+    const ext = path.extname(uri.fsPath).toLowerCase();
+    const scriptKind = ext === '.jsx' ? ts.ScriptKind.JSX : ts.ScriptKind.JS;
+
     const sourceFile = ts.createSourceFile(
       fileName,
       content,
       ts.ScriptTarget.Latest,
       true,
-      ts.ScriptKind.JS
+      scriptKind
     );
 
     const nodes: StructuralNode[] = [];

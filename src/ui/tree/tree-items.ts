@@ -71,9 +71,24 @@ export class FindingTreeItem extends vscode.TreeItem {
     md.appendMarkdown(`### ${finding.title}\n\n`);
     md.appendMarkdown(`**File**: \`${finding.location.filePath}${lineSuffix}\`\n\n`);
     md.appendMarkdown(`**Severity**: \`${severityUpper}\` • **Confidence**: \`${confidenceUpper}\`\n\n`);
+    if (finding.evidenceClassification) {
+      const classLabel =
+        finding.evidenceClassification === 'confirmed-regression'
+          ? 'Confirmed Regression'
+          : finding.evidenceClassification === 'structural-regression'
+          ? 'High-Confidence Structural Regression'
+          : 'Needs Review';
+      md.appendMarkdown(`**Classification**: \`${classLabel}\`\n\n`);
+    }
+    if (finding.ruleId) {
+      md.appendMarkdown(`**Rule**: \`${finding.ruleId}\`\n\n`);
+    }
     md.appendMarkdown(`---\n\n`);
     md.appendMarkdown(`**Explanation**:\n${finding.explanation}\n\n`);
     md.appendMarkdown(`**Evidence**:\n\`\`\`\n${finding.evidence}\n\`\`\`\n\n`);
+    if (finding.suggestedRemediation) {
+      md.appendMarkdown(`**Remediation**:\n${finding.suggestedRemediation}\n\n`);
+    }
     md.appendMarkdown(`*Category: ${finding.category} • Engine: ${finding.sourceEngine}*`);
 
     this.tooltip = md;

@@ -17,6 +17,7 @@ export class AutoReportManager extends Disposable {
   private readonly _debouncedUpdate: DebouncedFunction<[]>;
   private readonly _lastReportHashByRoot = new Map<string, string>();
   private _isDisposed = false;
+  private _autoWrite: boolean;
 
   constructor(
     private readonly _engine: AgentGuardEngine,
@@ -25,9 +26,11 @@ export class AutoReportManager extends Disposable {
     private readonly _languageRegistry: LanguageAdapterRegistry,
     private readonly _reporter: MarkdownReporter,
     private readonly _logger: ILogger,
-    debounceMs: number = 400
+    debounceMs: number = 400,
+    autoWrite: boolean = true
   ) {
     super();
+    this._autoWrite = autoWrite;
 
     this._debouncedUpdate = debounce(
       () => {
@@ -52,10 +55,21 @@ export class AutoReportManager extends Disposable {
   }
 
   /**
+   * Configures whether reports are written automatically on change.
+   */
+  public setAutoWrite(enabled: boolean): void {
+    this._autoWrite = enabled;
+  }
+
+  public isAutoWriteEnabled(): boolean {
+    return this._autoWrite;
+  }
+
+  /**
    * Schedules a debounced automatic report write.
    */
   public scheduleReport(): void {
-    if (this._isDisposed) {
+    if (this._isDisposed || !this._autoWrite) {
       return;
     }
     this._debouncedUpdate();
