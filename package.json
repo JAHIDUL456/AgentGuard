@@ -24,12 +24,12 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/agentguard/agentguard.git"
+    "url": "https://github.com/jahidul456/agentguard.git"
   },
   "bugs": {
-    "url": "https://github.com/agentguard/agentguard/issues"
+    "url": "https://github.com/jahidul456/agentguard/issues"
   },
-  "homepage": "https://github.com/agentguard/agentguard#readme",
+  "homepage": "https://github.com/jahidul456/agentguard#readme",
   "icon": "resources/icons/agentguard-icon.png",
   "main": "./dist/extension.js",
   "activationEvents": [
