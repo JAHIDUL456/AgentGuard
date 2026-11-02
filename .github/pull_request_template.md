@@ -11,6 +11,7 @@ Fixes #(issue number, if applicable)
 - [ ] Performance improvement
 
 ## Architectural & Offline Checklist
+- [ ] **Licensing**: Contributed code is submitted under the Apache License, Version 2.0 without additional restrictions.
 - [ ] **Offline Boundary**: Absolutely no remote API calls, analytics, or outbound telemetry added.
 - [ ] **Zero Configuration**: Functionality works automatically without mandatory user setup.
 - [ ] **Language Independence**: Core engine and findings remain decoupled from language-specific ASTs.

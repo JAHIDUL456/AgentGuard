@@ -56,6 +56,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Release Validation & Open-Source Readiness (Stage 8)**:
   - 6 end-to-end scenario test suites (Scenarios A through F) verifying multi-language, non-git, and multi-root workflows.
-  - Full GitHub repository standards: MIT License, Security policy, Contributing guide, Bug report and Feature request templates, Pull request template.
+  - Full GitHub repository standards: Apache-2.0 License, NOTICE attribution, Security policy, Contributing guide, Bug report and Feature request templates, Pull request template.
   - Comprehensive README with complete language capability matrix, architecture diagrams, and usage guides.
   - Clean VSIX package generation verified through `@vscode/vsce`.

@@ -2,7 +2,7 @@
 
 > **"Install and forget. It watches your codebase, catches silent breaks, and flags hidden logic risks automatically."**
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 [![VS Code Extension](https://img.shields.io/badge/VS%20Code-v1.90.0%2B-blueviolet.svg)](https://marketplace.visualstudio.com)
 [![Offline First](https://img.shields.io/badge/Privacy-100%25%20Offline-success.svg)](SECURITY.md)
 
@@ -392,17 +392,21 @@ This generates `agentguard-0.1.0.vsix` containing only runtime code, icons, docu
 
 ## 14. Contribution Guidelines
 
-Contributions are welcome! Please review [CONTRIBUTING.md](CONTRIBUTING.md) and [SECURITY.md](SECURITY.md) before submitting pull requests.
+Contributions are warmly welcomed! As an open-source project, developers worldwide can inspect, fork, modify, test, and contribute improvements to AgentGuard.
 
-### Core Rules
-- **Maintain Offline Boundary**: Pull requests introducing network calls, analytics, or external API requirements will not be accepted.
-- **Strict TypeScript**: All code must compile with `strict: true` and zero compiler warnings.
-- **Resource Management**: All event listeners, timers, and disposables must be registered through `DisposableStore`.
-- **Test Coverage**: All bug fixes and features must include corresponding unit tests covering both positive and negative cases.
+- **No CLA Required**: Contributions are submitted directly under the terms of the Apache License 2.0 (Section 5).
+- **Reporting Issues**: Found a bug or have an idea? Open an issue on [GitHub Issues](https://github.com/agentguard/agentguard/issues).
+- **Submitting Pull Requests**: Please read [CONTRIBUTING.md](CONTRIBUTING.md) for architectural guidelines, strict typing standards, and the PR checklist.
+- **Security Inquiries**: To report security vulnerabilities privately, please follow the instructions in [SECURITY.md](SECURITY.md).
 
 ---
 
-## 15. License
+## 15. License & Open Source
 
-AgentGuard is licensed under the [MIT License](LICENSE).  
-Copyright (c) 2026 AgentGuard Contributors.
+AgentGuard is free and open-source software licensed under the **[Apache License, Version 2.0](LICENSE)** (Apache-2.0).
+
+- **Redistribution & Forking**: You are free to view, fork, modify, distribute, and sublicense this software for personal and commercial purposes under the terms of the Apache License 2.0.
+- **Attribution**: Retain original copyright notices and the distribution [NOTICE](NOTICE) file in accordance with Section 4 of the license.
+- **Project Branding**: As specified in Section 6 of Apache-2.0, this license does not grant trademark or branding rights. The name "AgentGuard", its official shield icon, and official logo assets may not be used to endorse or promote derived products, nor may modified forks be misrepresented as official AgentGuard releases.
+
+Copyright 2026 Md. Jahidul Islam and AgentGuard Contributors.
