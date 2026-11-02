@@ -16,6 +16,8 @@ export interface FileChangeEvent {
   readonly timestamp: number;
   readonly oldUri?: vscode.Uri;
   readonly source: EventSource;
+  readonly documentVersion?: number;
+  readonly contentChanges?: readonly vscode.TextDocumentContentChangeEvent[];
 }
 
 export interface ChangeBatch {

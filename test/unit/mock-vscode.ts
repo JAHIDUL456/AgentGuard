@@ -310,6 +310,8 @@ export class MockDiagnosticCollection {
 }
 
 const onDidChangeWorkspaceFoldersEmitter = new MockEventEmitter<unknown>();
+const onDidOpenTextDocumentEmitter = new MockEventEmitter<unknown>();
+const onDidCloseTextDocumentEmitter = new MockEventEmitter<unknown>();
 const onDidSaveTextDocumentEmitter = new MockEventEmitter<unknown>();
 const onDidChangeTextDocumentEmitter = new MockEventEmitter<unknown>();
 const onDidRenameFilesEmitter = new MockEventEmitter<unknown>();
@@ -354,8 +356,13 @@ export const mockVscode = {
   },
   workspace: {
     workspaceFolders: [] as unknown[],
+    textDocuments: [] as any[],
     onDidChangeWorkspaceFolders: onDidChangeWorkspaceFoldersEmitter.event,
     _fireDidChangeWorkspaceFolders: (data: unknown) => onDidChangeWorkspaceFoldersEmitter.fire(data),
+    onDidOpenTextDocument: onDidOpenTextDocumentEmitter.event,
+    _fireDidOpenTextDocument: (data: unknown) => onDidOpenTextDocumentEmitter.fire(data),
+    onDidCloseTextDocument: onDidCloseTextDocumentEmitter.event,
+    _fireDidCloseTextDocument: (data: unknown) => onDidCloseTextDocumentEmitter.fire(data),
     onDidSaveTextDocument: onDidSaveTextDocumentEmitter.event,
     _fireDidSaveTextDocument: (data: unknown) => onDidSaveTextDocumentEmitter.fire(data),
     onDidChangeTextDocument: onDidChangeTextDocumentEmitter.event,

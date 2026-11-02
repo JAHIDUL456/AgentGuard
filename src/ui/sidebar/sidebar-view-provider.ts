@@ -25,6 +25,7 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
 
   private _view?: vscode.WebviewView;
   private _filterState: SidebarFilterState = {};
+  private _hasLoadedWebview = false;
 
   constructor(
     private readonly _extensionUri: vscode.Uri,
@@ -44,6 +45,7 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
     _token: vscode.CancellationToken
   ): void {
     this._view = webviewView;
+    this._hasLoadedWebview = false;
 
     webviewView.webview.options = {
       enableScripts: true,
@@ -101,7 +103,23 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
     if (!this._view) {
       return;
     }
-    this._view.webview.html = this._getHtmlForWebview(this._view.webview);
+
+    if (!this._hasLoadedWebview) {
+      // First mount: establish the complete HTML shell with initial data
+      this._view.webview.html = this._getHtmlForWebview(this._view.webview);
+      this._hasLoadedWebview = true;
+      return;
+    }
+
+    // Subsequent updates: send smooth, non-destructive postMessage delta
+    // This completely eliminates DOM tearing, hover flickering, and scroll jumps
+    const payload = this._computeStatePayload();
+    if (typeof this._view.webview.postMessage === 'function') {
+      this._view.webview.postMessage({
+        type: 'stateUpdate',
+        data: payload,
+      });
+    }
   }
 
   private _findFinding(id: string): Finding | undefined {
@@ -111,12 +129,10 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
     );
   }
 
-  private _getHtmlForWebview(webview: vscode.Webview): string {
-    const nonce = crypto.randomBytes(16).toString('base64');
+  private _computeStatePayload() {
     const allFindings = this._findingManager.getAll();
     const resolvedFindings = this._findingManager.getResolvedHistory();
 
-    // 1. Determine System Status
     const isMonitoring = this._changeMonitor.isEnabled();
     const isAnalyzing = this._engine.state === 'analyzing';
     const hasWorkspace = this._workspaceManager.hasWorkspace();
@@ -137,7 +153,6 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
       statusClass = 'status-limited';
     }
 
-    // 2. Compute Summary Metrics
     const criticalCount = allFindings.filter(f => f.severity === 'error').length;
     const newIssuesCount = allFindings.filter(
       f =>
@@ -147,15 +162,7 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
     ).length;
     const uniqueFiles = new Set(allFindings.map(f => f.location.filePath)).size;
     const resolvedCount = resolvedFindings.length;
-    const reviewCount = allFindings.filter(
-      f =>
-        f.severity === 'info' ||
-        f.category === 'unresolved-reference' ||
-        f.category === 'analysis-incomplete' ||
-        f.confidence === 'low'
-    ).length;
 
-    // 3. Filter Findings Based on Selection
     let displayedFindings = [...allFindings];
     const cardFilter = this._filterState.cardFilter;
 
@@ -169,7 +176,6 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
     } else if (cardFilter === 'critical') {
       displayedFindings = displayedFindings.filter(f => f.severity === 'error');
     } else if (cardFilter === 'files') {
-      // Keep all, ordered by file
       displayedFindings.sort((a, b) => a.location.filePath.localeCompare(b.location.filePath));
     } else if (cardFilter === 'resolved') {
       displayedFindings = [...resolvedFindings];
@@ -193,7 +199,6 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
       );
     }
 
-    // 4. Categorize Findings
     const breaking = displayedFindings.filter(f =>
       [
         'untouched-file',
@@ -237,6 +242,32 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
 
     const resolved = displayedFindings.filter(f => f.status === 'resolved');
 
+    return {
+      statusText,
+      statusClass,
+      totalActive: allFindings.length,
+      metrics: {
+        newCount: newIssuesCount,
+        criticalCount,
+        affectedFiles: uniqueFiles,
+        resolvedCount,
+      },
+      cardFilter,
+      categories: {
+        breaking: breaking.map(f => this._renderFindingCard(f)),
+        regressions: regressions.map(f => this._renderFindingCard(f)),
+        securityAndLogic: securityAndLogic.map(f => this._renderFindingCard(f)),
+        unused: unused.map(f => this._renderFindingCard(f)),
+        needsReview: needsReview.map(f => this._renderFindingCard(f)),
+        resolved: resolved.map(f => this._renderFindingCard(f)),
+      },
+    };
+  }
+
+  private _getHtmlForWebview(_webview: vscode.Webview): string {
+    const nonce = crypto.randomBytes(16).toString('base64');
+    const data = this._computeStatePayload();
+
     return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -258,17 +289,30 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
       --resolved-color: var(--vscode-charts-green, #388a34);
     }
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body {
+    html, body {
+      height: 100%;
+      overflow: hidden;
       font-family: var(--font-family);
       font-size: var(--font-size);
       color: var(--vscode-foreground);
       background-color: var(--vscode-sideBar-background);
-      padding: 10px;
-      line-height: 1.4;
       user-select: none;
     }
     
-    /* Header */
+    .app-container {
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      overflow: hidden;
+      padding: 8px 10px;
+      box-sizing: border-box;
+    }
+    
+    /* Fixed Header Area */
+    .header-section {
+      flex-shrink: 0;
+    }
+    
     .header {
       display: flex;
       justify-content: space-between;
@@ -304,21 +348,30 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
       height: 7px;
       border-radius: 50%;
       display: inline-block;
+      transition: background-color 0.2s ease;
     }
     .status-monitoring .status-dot { background-color: var(--resolved-color); box-shadow: 0 0 5px var(--resolved-color); }
-    .status-checking .status-dot { background-color: var(--review-color); animation: pulse 1s infinite; }
+    .status-checking .status-dot { background-color: var(--review-color); }
     .status-paused .status-dot { background-color: var(--warning-color); }
     .status-limited .status-dot { background-color: var(--vscode-descriptionForeground); }
 
-    @keyframes pulse {
-      0% { opacity: 0.4; }
-      50% { opacity: 1; }
-      100% { opacity: 0.4; }
-    }
-
     .header-controls {
       display: flex;
-      gap: 3px;
+      align-items: center;
+      gap: 5px;
+    }
+    .header-count-pill {
+      font-size: 11px;
+      font-weight: 600;
+      padding: 2px 7px;
+      border-radius: 10px;
+      background: var(--hover-bg);
+      border: 1px solid var(--border-color);
+      color: var(--vscode-foreground);
+    }
+    .header-count-pill.has-issues {
+      color: var(--critical-color);
+      border-color: rgba(241, 76, 76, 0.4);
     }
     .icon-btn {
       background: transparent;
@@ -331,18 +384,19 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
       align-items: center;
       justify-content: center;
       font-size: 12px;
+      line-height: 1;
     }
     .icon-btn:hover {
       background-color: var(--hover-bg);
       border-color: var(--border-color);
     }
 
-    /* Summary Metrics Cards (Responsive 2-Column) */
+    /* Summary Metric Cards (2-Column Responsive) */
     .summary-grid {
       display: grid;
       grid-template-columns: repeat(2, 1fr);
       gap: 6px;
-      margin-bottom: 12px;
+      margin-bottom: 10px;
     }
     .metric-card {
       background: var(--card-bg);
@@ -375,7 +429,7 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
       justify-content: space-between;
     }
     .metric-value {
-      font-size: 16px;
+      font-size: 15px;
       font-weight: 600;
       color: var(--vscode-foreground);
     }
@@ -391,13 +445,33 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
       padding: 4px 8px;
       background: var(--hover-bg);
       border-radius: 4px;
-      margin-bottom: 10px;
+      margin-bottom: 8px;
       font-size: 11px;
     }
     .clear-link {
       color: var(--review-color);
       cursor: pointer;
       text-decoration: underline;
+    }
+
+    /* Dedicated Smooth Scrollable Findings List */
+    .scrollable-content {
+      flex: 1 1 auto;
+      overflow-y: auto;
+      overflow-x: hidden;
+      overscroll-behavior: contain;
+      -webkit-overflow-scrolling: touch;
+      padding-right: 2px;
+    }
+    .scrollable-content::-webkit-scrollbar {
+      width: 6px;
+    }
+    .scrollable-content::-webkit-scrollbar-thumb {
+      background: var(--vscode-scrollbarSlider-background);
+      border-radius: 3px;
+    }
+    .scrollable-content::-webkit-scrollbar-thumb:hover {
+      background: var(--vscode-scrollbarSlider-hoverBackground);
     }
 
     /* Category Accordions */
@@ -508,14 +582,13 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
 
     /* Empty State */
     .empty-state {
-      text-align: center;
       padding: 24px 12px;
+      text-align: center;
       color: var(--vscode-descriptionForeground);
     }
     .empty-icon {
       font-size: 24px;
       margin-bottom: 8px;
-      display: block;
       color: var(--resolved-color);
     }
     .empty-headline {
@@ -531,167 +604,165 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
   </style>
 </head>
 <body>
-  <!-- Header -->
-  <div class="header">
-    <div class="header-left">
-      <div class="title-row">
-        <span class="app-title">AgentGuard</span>
+  <div class="app-container">
+    <!-- Header Section -->
+    <div class="header-section">
+      <div class="header">
+        <div class="header-left">
+          <div class="title-row">
+            <span class="app-title">AgentGuard</span>
+          </div>
+          <div class="status-badge ${data.statusClass}" id="status-badge">
+            <span class="status-dot"></span>
+            <span id="status-text">${data.statusText}</span>
+          </div>
+        </div>
+        <div class="header-controls">
+          <span class="header-count-pill ${data.totalActive > 0 ? 'has-issues' : ''}" id="header-count-pill">${data.totalActive} issue${data.totalActive === 1 ? '' : 's'}</span>
+          <button class="icon-btn" id="btn-panel" title="Open full AgentGuard issues panel">📋</button>
+          <button class="icon-btn" id="btn-settings" title="AgentGuard Settings">⚙️</button>
+        </div>
       </div>
-      <div class="status-badge ${statusClass}">
-        <span class="status-dot"></span>
-        <span>${statusText}</span>
+
+      <!-- Summary Metric Cards (2-Column Responsive) -->
+      <div class="summary-grid">
+        <div class="metric-card new ${data.cardFilter === 'new' ? 'active' : ''}" data-filter="new">
+          <span class="metric-title">New Issues</span>
+          <div class="metric-value-row">
+            <span class="metric-value">${data.metrics.newCount}</span>
+          </div>
+        </div>
+        <div class="metric-card critical ${data.cardFilter === 'critical' ? 'active' : ''}" data-filter="critical">
+          <span class="metric-title">Critical Risks</span>
+          <div class="metric-value-row">
+            <span class="metric-value">${data.metrics.criticalCount}</span>
+          </div>
+        </div>
+        <div class="metric-card files ${data.cardFilter === 'files' ? 'active' : ''}" data-filter="files">
+          <span class="metric-title">Affected Files</span>
+          <div class="metric-value-row">
+            <span class="metric-value">${data.metrics.affectedFiles}</span>
+          </div>
+        </div>
+        <div class="metric-card resolved ${data.cardFilter === 'resolved' ? 'active' : ''}" data-filter="resolved">
+          <span class="metric-title">Resolved</span>
+          <div class="metric-value-row">
+            <span class="metric-value">${data.metrics.resolvedCount}</span>
+          </div>
+        </div>
+      </div>
+
+      ${data.cardFilter ? `
+      <div class="filter-banner" id="filter-banner">
+        <span>Filtered: <strong>${data.cardFilter.toUpperCase()}</strong></span>
+        <span class="clear-link" id="btn-clear-filter">Show all</span>
+      </div>` : ''}
+    </div>
+
+    <!-- Scrollable Findings List (Smooth kinetic scrolling, stable during updates) -->
+    <div class="scrollable-content" id="scroll-container">
+      <!-- Empty State -->
+      <div class="empty-state" id="empty-state" style="display: ${data.totalActive === 0 ? 'block' : 'none'};">
+        <div class="empty-icon">✓</div>
+        <div class="empty-headline">No new regressions detected.</div>
+        <div class="empty-desc">AgentGuard is actively monitoring your code in real time.</div>
+      </div>
+
+      <!-- Breaking Changes -->
+      <div class="category-group" id="group-breaking" style="display: ${data.categories.breaking.length > 0 ? 'block' : 'none'};">
+        <div class="category-header">
+          <span>Breaking Changes</span>
+          <span class="category-count" id="count-breaking">${data.categories.breaking.length}</span>
+        </div>
+        <div class="cards-container" id="cards-breaking">
+          ${data.categories.breaking.join('')}
+        </div>
+      </div>
+
+      <!-- Security & Critical Logic -->
+      <div class="category-group" id="group-securityAndLogic" style="display: ${data.categories.securityAndLogic.length > 0 ? 'block' : 'none'};">
+        <div class="category-header">
+          <span>Security & Logic</span>
+          <span class="category-count" id="count-securityAndLogic">${data.categories.securityAndLogic.length}</span>
+        </div>
+        <div class="cards-container" id="cards-securityAndLogic">
+          ${data.categories.securityAndLogic.join('')}
+        </div>
+      </div>
+
+      <!-- New Regressions -->
+      <div class="category-group" id="group-regressions" style="display: ${data.categories.regressions.length > 0 ? 'block' : 'none'};">
+        <div class="category-header">
+          <span>New Regressions</span>
+          <span class="category-count" id="count-regressions">${data.categories.regressions.length}</span>
+        </div>
+        <div class="cards-container" id="cards-regressions">
+          ${data.categories.regressions.join('')}
+        </div>
+      </div>
+
+      ${data.categories.unused.length > 0 ? `
+      <div class="category-group" id="group-unused">
+        <div class="category-header">
+          <span>Unused Code</span>
+          <span class="category-count" id="count-unused">${data.categories.unused.length}</span>
+        </div>
+        <div class="cards-container" id="cards-unused">
+          ${data.categories.unused.join('')}
+        </div>
+      </div>` : ''}
+
+      <!-- Needs Review -->
+      <div class="category-group" id="group-needsReview" style="display: ${data.categories.needsReview.length > 0 ? 'block' : 'none'};">
+        <div class="category-header">
+          <span>Needs Review</span>
+          <span class="category-count" id="count-needsReview">${data.categories.needsReview.length}</span>
+        </div>
+        <div class="cards-container" id="cards-needsReview">
+          ${data.categories.needsReview.join('')}
+        </div>
+      </div>
+
+      <!-- Resolved History -->
+      <div class="category-group" id="group-resolved" style="display: ${data.categories.resolved.length > 0 ? 'block' : 'none'};">
+        <div class="category-header">
+          <span>Resolved</span>
+          <span class="category-count" id="count-resolved">${data.categories.resolved.length}</span>
+        </div>
+        <div class="cards-container" id="cards-resolved">
+          ${data.categories.resolved.join('')}
+        </div>
       </div>
     </div>
-    <div class="header-controls">
-      <button class="icon-btn" id="btn-refresh" title="Check codebase safety (Refresh)">🔄</button>
-      <button class="icon-btn" id="btn-toggle" title="${isMonitoring ? 'Pause monitoring' : 'Resume monitoring'}">${isMonitoring ? '⏸️' : '▶️'}</button>
-      <button class="icon-btn" id="btn-panel" title="Open full AgentGuard issues panel">📋</button>
-      <button class="icon-btn" id="btn-settings" title="AgentGuard Settings">⚙️</button>
-    </div>
-  </div>
-
-  <!-- Summary Metric Cards (2-Column Responsive) -->
-  <div class="summary-grid">
-    <div class="metric-card new ${cardFilter === 'new' ? 'active' : ''}" data-filter="new">
-      <span class="metric-title">New Issues</span>
-      <div class="metric-value-row">
-        <span class="metric-value">${newIssuesCount}</span>
-      </div>
-    </div>
-    <div class="metric-card critical ${cardFilter === 'critical' ? 'active' : ''}" data-filter="critical">
-      <span class="metric-title">Critical Risks</span>
-      <div class="metric-value-row">
-        <span class="metric-value">${criticalCount}</span>
-      </div>
-    </div>
-    <div class="metric-card files ${cardFilter === 'files' ? 'active' : ''}" data-filter="files">
-      <span class="metric-title">Affected Files</span>
-      <div class="metric-value-row">
-        <span class="metric-value">${uniqueFiles}</span>
-      </div>
-    </div>
-    <div class="metric-card resolved ${cardFilter === 'resolved' ? 'active' : ''}" data-filter="resolved">
-      <span class="metric-title">Resolved</span>
-      <div class="metric-value-row">
-        <span class="metric-value">${resolvedCount}</span>
-      </div>
-    </div>
-  </div>
-
-  <!-- Active Filter Banner (if filter active) -->
-  ${
-    cardFilter
-      ? `<div class="filter-banner">
-          <span>Filtering by: <strong>${cardFilter.toUpperCase()}</strong></span>
-          <span class="clear-link" id="btn-clear-filter">Show All</span>
-        </div>`
-      : ''
-  }
-
-  <!-- Findings List -->
-  <div class="findings-container">
-    ${
-      displayedFindings.length === 0
-        ? `<div class="empty-state">
-            <span class="empty-icon">✓</span>
-            <div class="empty-headline">No new regressions detected.</div>
-            <div class="empty-desc">All monitored files and change impacts conform to safety policies.</div>
-          </div>`
-        : ''
-    }
-
-    ${
-      breaking.length > 0
-        ? `<div class="category-group">
-            <div class="category-header">
-              <span>Breaking Changes</span>
-              <span class="category-count">${breaking.length}</span>
-            </div>
-            ${breaking.map(f => this._renderFindingCard(f)).join('')}
-          </div>`
-        : ''
-    }
-
-    ${
-      regressions.length > 0
-        ? `<div class="category-group">
-            <div class="category-header">
-              <span>New Regressions</span>
-              <span class="category-count">${regressions.length}</span>
-            </div>
-            ${regressions.map(f => this._renderFindingCard(f)).join('')}
-          </div>`
-        : ''
-    }
-
-    ${
-      securityAndLogic.length > 0
-        ? `<div class="category-group">
-            <div class="category-header">
-              <span>Security & Logic</span>
-              <span class="category-count">${securityAndLogic.length}</span>
-            </div>
-            ${securityAndLogic.map(f => this._renderFindingCard(f)).join('')}
-          </div>`
-        : ''
-    }
-
-    ${
-      unused.length > 0
-        ? `<div class="category-group">
-            <div class="category-header">
-              <span>Unused Code</span>
-              <span class="category-count">${unused.length}</span>
-            </div>
-            ${unused.map(f => this._renderFindingCard(f)).join('')}
-          </div>`
-        : ''
-    }
-
-    ${
-      needsReview.length > 0
-        ? `<div class="category-group">
-            <div class="category-header">
-              <span>Needs Review</span>
-              <span class="category-count">${needsReview.length}</span>
-            </div>
-            ${needsReview.map(f => this._renderFindingCard(f)).join('')}
-          </div>`
-        : ''
-    }
-
-    ${
-      cardFilter === 'resolved' && resolved.length > 0
-        ? `<div class="category-group">
-            <div class="category-header">
-              <span>Verified Resolved</span>
-              <span class="category-count">${resolved.length}</span>
-            </div>
-            ${resolved.map(f => this._renderFindingCard(f)).join('')}
-          </div>`
-        : ''
-    }
   </div>
 
   <script nonce="${nonce}">
     const vscode = acquireVsCodeApi();
 
-    document.getElementById('btn-refresh')?.addEventListener('click', () => {
-      vscode.postMessage({ type: 'refresh' });
-    });
-    document.getElementById('btn-toggle')?.addEventListener('click', () => {
-      vscode.postMessage({ type: 'toggleMonitoring' });
-    });
+    // Attach finding card click listeners
+    function attachCardListeners(root = document) {
+      root.querySelectorAll('.finding-card').forEach(card => {
+        if (card.dataset.listenerAttached) return;
+        card.dataset.listenerAttached = 'true';
+        card.addEventListener('click', () => {
+          const findingId = card.getAttribute('data-finding-id');
+          if (findingId) {
+            vscode.postMessage({ type: 'openFinding', findingId });
+          }
+        });
+      });
+    }
+    attachCardListeners();
+
+    // Header controls
     document.getElementById('btn-panel')?.addEventListener('click', () => {
       vscode.postMessage({ type: 'openProblemsPanel' });
     });
     document.getElementById('btn-settings')?.addEventListener('click', () => {
       vscode.postMessage({ type: 'openSettings' });
     });
-    document.getElementById('btn-clear-filter')?.addEventListener('click', () => {
-      vscode.postMessage({ type: 'clearFilters' });
-    });
 
+    // Summary Card filters
     document.querySelectorAll('.metric-card').forEach(card => {
       card.addEventListener('click', () => {
         const filter = card.getAttribute('data-filter');
@@ -699,11 +770,94 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
       });
     });
 
-    document.querySelectorAll('.finding-card').forEach(card => {
-      card.addEventListener('click', () => {
-        const findingId = card.getAttribute('data-finding-id');
-        vscode.postMessage({ type: 'openFinding', findingId });
+    document.getElementById('btn-clear-filter')?.addEventListener('click', () => {
+      vscode.postMessage({ type: 'clearFilters' });
+    });
+
+    // Live State Update Message Listener (Zero DOM Teardown = Zero Blinking & Preserved Scroll)
+    window.addEventListener('message', event => {
+      const msg = event.data;
+      if (!msg || msg.type !== 'stateUpdate') return;
+
+      const data = msg.data;
+      if (!data) return;
+
+      // 1. Update Header Status
+      const statusBadge = document.getElementById('status-badge');
+      const statusText = document.getElementById('status-text');
+      if (statusBadge && statusText) {
+        statusBadge.className = 'status-badge ' + data.statusClass;
+        statusText.textContent = data.statusText;
+      }
+
+      // 2. Update Header Count Pill
+      const countPill = document.getElementById('header-count-pill');
+      if (countPill) {
+        countPill.textContent = data.totalActive + (data.totalActive === 1 ? ' issue' : ' issues');
+        if (data.totalActive > 0) {
+          countPill.classList.add('has-issues');
+        } else {
+          countPill.classList.remove('has-issues');
+        }
+      }
+
+      // 3. Update Metric Numbers
+      const newCard = document.querySelector('.metric-card.new .metric-value');
+      const critCard = document.querySelector('.metric-card.critical .metric-value');
+      const filesCard = document.querySelector('.metric-card.files .metric-value');
+      const resCard = document.querySelector('.metric-card.resolved .metric-value');
+      if (newCard) newCard.textContent = data.metrics.newCount;
+      if (critCard) critCard.textContent = data.metrics.criticalCount;
+      if (filesCard) filesCard.textContent = data.metrics.affectedFiles;
+      if (resCard) resCard.textContent = data.metrics.resolvedCount;
+
+      // 4. Update Filter Active Card
+      document.querySelectorAll('.metric-card').forEach(card => {
+        const f = card.getAttribute('data-filter');
+        if (f === data.cardFilter) {
+          card.classList.add('active');
+        } else {
+          card.classList.remove('active');
+        }
       });
+
+      // 5. Update Empty State
+      const emptyState = document.getElementById('empty-state');
+      if (emptyState) {
+        emptyState.style.display = data.totalActive === 0 ? 'block' : 'none';
+      }
+
+      // 6. Update Categories smoothly
+      const cats = ['breaking', 'securityAndLogic', 'regressions', 'unused', 'needsReview', 'resolved'];
+      const scrollContainer = document.getElementById('scroll-container');
+      const savedScroll = scrollContainer ? scrollContainer.scrollTop : 0;
+
+      for (const catKey of cats) {
+        const group = document.getElementById('group-' + catKey);
+        const countEl = document.getElementById('count-' + catKey);
+        const cardsContainer = document.getElementById('cards-' + catKey);
+        const cardHtmlList = data.categories[catKey] || [];
+
+        if (group && countEl && cardsContainer) {
+          if (cardHtmlList.length === 0) {
+            group.style.display = 'none';
+          } else {
+            group.style.display = 'block';
+            countEl.textContent = cardHtmlList.length;
+            const newHtml = cardHtmlList.join('');
+            if (cardsContainer.dataset.cachedHtml !== newHtml) {
+              cardsContainer.innerHTML = newHtml;
+              cardsContainer.dataset.cachedHtml = newHtml;
+              attachCardListeners(cardsContainer);
+            }
+          }
+        }
+      }
+
+      // Restore exact scroll position if altered by layout shift
+      if (scrollContainer && scrollContainer.scrollTop !== savedScroll) {
+        scrollContainer.scrollTop = savedScroll;
+      }
     });
   </script>
 </body>

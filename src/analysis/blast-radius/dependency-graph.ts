@@ -3,6 +3,7 @@ import * as path from 'path';
 import * as vscode from 'vscode';
 import { ILogger } from '../../core/logger';
 import { LanguageAdapterRegistry } from '../../languages/adapter-registry';
+import { DocumentContentReader } from '../../utils/document-content';
 import { isIgnoredPath } from '../../utils/path-utils';
 import { WorkspaceManager } from '../../workspace/workspace-manager';
 import { TypeScriptScopeAnalyzer } from '../scope/typescript-scope-analyzer';
@@ -48,7 +49,7 @@ export class DependencyGraph {
     let fileContent = content;
     if (fileContent === undefined) {
       try {
-        fileContent = await fs.promises.readFile(fileUri.fsPath, 'utf8');
+        fileContent = await DocumentContentReader.readContent(fileUri);
       } catch (err) {
         this._logger.debug(`Could not read file for dependency scan: ${fileUri.fsPath}`, err);
         return [];

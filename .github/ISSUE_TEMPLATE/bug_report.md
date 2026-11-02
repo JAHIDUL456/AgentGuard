@@ -25,7 +25,7 @@ What actually happened (e.g. false positive finding, missed regression, crash).
 ## Environment Information
 - **OS**: [e.g. macOS 14.5, Ubuntu 22.04, Windows 11]
 - **VS Code Version**: [e.g. 1.90.0]
-- **AgentGuard Version**: [e.g. 0.1.0]
+- **AgentGuard Version**: [e.g. 2.0.0]
 - **Languages Present in Workspace**: [e.g. TypeScript, Python]
 - **Git Version (if applicable)**: [e.g. 2.43.0 or None]
 

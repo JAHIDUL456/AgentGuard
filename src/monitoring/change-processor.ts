@@ -9,13 +9,15 @@ export interface ProcessorOptions {
   readonly maxWaitMs?: number;
 }
 
-const DEFAULT_DEBOUNCE_MS = 300;
-const DEFAULT_MAX_WAIT_MS = 1500;
+const DEFAULT_TYPING_DEBOUNCE_MS = 50;
+const DEFAULT_TYPING_MAX_WAIT_MS = 250;
+const DEFAULT_DEBOUNCE_MS = 100;
+const DEFAULT_MAX_WAIT_MS = 500;
 
 export class ChangeProcessor extends Disposable {
   private readonly _queue = new ChangeQueue();
-  private readonly _debounceMs: number;
-  private readonly _maxWaitMs: number;
+  private readonly _customDebounceMs?: number;
+  private readonly _customMaxWaitMs?: number;
 
   private _debounceTimer: NodeJS.Timeout | undefined;
   private _maxWaitTimer: NodeJS.Timeout | undefined;
@@ -33,8 +35,8 @@ export class ChangeProcessor extends Disposable {
     options: ProcessorOptions = {}
   ) {
     super();
-    this._debounceMs = options.debounceMs ?? DEFAULT_DEBOUNCE_MS;
-    this._maxWaitMs = options.maxWaitMs ?? DEFAULT_MAX_WAIT_MS;
+    this._customDebounceMs = options.debounceMs;
+    this._customMaxWaitMs = options.maxWaitMs;
   }
 
   public get pendingCount(): number {
@@ -43,7 +45,7 @@ export class ChangeProcessor extends Disposable {
 
   public enqueue(event: FileChangeEvent): void {
     this._queue.enqueue(event);
-    this._scheduleFlush();
+    this._scheduleFlush(event.source === 'document');
   }
 
   public clear(): void {
@@ -112,7 +114,14 @@ export class ChangeProcessor extends Disposable {
     super.dispose();
   }
 
-  private _scheduleFlush(): void {
+  private _scheduleFlush(isTyping = false): void {
+    const debounceMs =
+      this._customDebounceMs ??
+      (isTyping ? DEFAULT_TYPING_DEBOUNCE_MS : DEFAULT_DEBOUNCE_MS);
+    const maxWaitMs =
+      this._customMaxWaitMs ??
+      (isTyping ? DEFAULT_TYPING_MAX_WAIT_MS : DEFAULT_MAX_WAIT_MS);
+
     // Reset the debounce timer on each incoming event
     if (this._debounceTimer !== undefined) {
       clearTimeout(this._debounceTimer);
@@ -120,14 +129,14 @@ export class ChangeProcessor extends Disposable {
     this._debounceTimer = setTimeout(() => {
       this._debounceTimer = undefined;
       this.flush();
-    }, this._debounceMs);
+    }, debounceMs);
 
     // Ensure we don't delay indefinitely during sustained rapid event bursts
     if (this._maxWaitTimer === undefined) {
       this._maxWaitTimer = setTimeout(() => {
         this._maxWaitTimer = undefined;
         this.flush();
-      }, this._maxWaitMs);
+      }, maxWaitMs);
     }
   }
 

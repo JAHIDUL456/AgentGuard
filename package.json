@@ -1,7 +1,7 @@
 {
   "name": "agentguard",
-  "displayName": "AgentGuard",
-  "description": "Offline-first, zero-configuration codebase safety extension. Catches silent breaks and flags hidden logic risks automatically.",
+  "displayName": "AgentGuard — Real-Time Codebase Safety & AI Code Review",
+  "description": "Real-time codebase safety for developers and AI coding agents. Catches breaking changes in untouched files, silent regressions, and deleted security checks as you type. 100% offline.",
   "version": "2.0.0",
   "publisher": "swe-jahid-agentguard",
   "author": "Md. Jahidul Islam",
@@ -10,18 +10,60 @@
     "vscode": "^1.90.0"
   },
   "categories": [
+    "AI",
     "Linters",
-    "Programming Languages",
-    "Testing"
+    "Testing",
+    "Programming Languages"
   ],
   "keywords": [
     "agentguard",
     "codebase-safety",
-    "silent-breaks",
+    "ai-code-review",
+    "ai-coding-agents",
+    "copilot",
+    "cursor",
+    "claude-code",
+    "breaking-changes",
+    "blast-radius",
+    "code-safety",
+    "code-review",
+    "code-quality",
+    "impact-analysis",
+    "dependency-tracker",
+    "silent-regressions",
     "logic-risks",
-    "ai-code-guard",
-    "offline-first"
+    "security-guard",
+    "auth-checker",
+    "static-analysis",
+    "offline-first",
+    "error-lens",
+    "developer-tools",
+    "real-time",
+    "refactoring",
+    "linter"
   ],
+  "galleryBanner": {
+    "color": "#0d1117",
+    "theme": "dark"
+  },
+  "badges": [
+    {
+      "url": "https://img.shields.io/badge/License-Apache_2.0-blue.svg",
+      "href": "https://github.com/jahidul456/agentguard/blob/main/LICENSE",
+      "description": "Apache-2.0 License"
+    },
+    {
+      "url": "https://img.shields.io/badge/Privacy-100%25%20Offline-success.svg",
+      "href": "https://github.com/jahidul456/agentguard/blob/main/SECURITY.md",
+      "description": "100% Offline Static Analysis"
+    },
+    {
+      "url": "https://img.shields.io/badge/Telemetry-Zero%20Data%20Collected-informational.svg",
+      "href": "https://github.com/jahidul456/agentguard/blob/main/SECURITY.md",
+      "description": "Zero Telemetry"
+    }
+  ],
+  "qna": "https://github.com/jahidul456/agentguard/discussions",
   "repository": {
     "type": "git",
     "url": "https://github.com/jahidul456/agentguard.git"

@@ -4,6 +4,8 @@ Thank you for your interest in contributing to AgentGuard! AgentGuard is a commu
 
 We welcome contributions from developers worldwide to make codebase safety faster, more reliable, and universally accessible.
 
+Please review our [Code of Conduct](CODE_OF_CONDUCT.md) to ensure an open, welcoming community for everyone.
+
 ---
 
 ## What You Can Do
@@ -12,10 +14,26 @@ As an open-source project under Apache-2.0, you are free to:
 
 - **View & Inspect**: Study the entire source code and implementation.
 - **Fork & Modify**: Create forks to experiment, adapt, or build upon the architecture.
-- **Report Issues**: Submit bug reports and feature requests via [GitHub Issues](https://github.com/agentguard/agentguard/issues).
+- **Report Issues**: Submit bug reports and feature requests via [GitHub Issues](https://github.com/jahidul456/agentguard/issues).
 - **Submit Pull Requests**: Fix defects, add language heuristics, or refine engines.
 - **Improve Documentation & Tests**: Enhance guides, write test fixtures, and expand test coverage.
 - **Redistribute**: Share and redistribute the software in accordance with Apache-2.0 conditions.
+
+---
+
+## Great Areas for First-Time Contributors ("Good First Issues")
+
+We actively tag beginner-friendly tasks on our [Issues Board](https://github.com/jahidul456/agentguard/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22). Some great places to start:
+
+1. **New Watchdog Safety Rules (`src/analysis/watchdog/rules/`)**:
+   - Add heuristics for framework-specific authorization (e.g., Spring Security `@PreAuthorize`, NestJS `@UseGuards`, Django `@permission_required`).
+   - Add checks for removed database transaction commits/rollbacks in popular ORMs (Prisma, TypeORM, SQLAlchemy, Hibernate).
+2. **Language Adapter Heuristics (`src/languages/adapters/`)**:
+   - Improve manifest recognition or syntax parsing for Tier 2 and Tier 3 languages (Swift, Kotlin, Scala, Elixir).
+3. **Regression Test Fixtures (`test/fixtures/`)**:
+   - Add minimal test files demonstrating edge-case syntax, JSX patterns, macro usage, or complex nested callbacks to ensure zero false positives.
+4. **Performance & Documentation**:
+   - Benchmark incremental parse speed or improve setup walkthroughs and translation guides.
 
 ---
 
@@ -43,8 +61,8 @@ By submitting a Pull Request or patch for inclusion in AgentGuard, you agree tha
 
 1. **Fork and clone the repository**:
    ```bash
-   git clone https://github.com/<your-username>/AgentGuard.git
-   cd AgentGuard
+   git clone https://github.com/jahidul456/agentguard.git
+   cd agentguard
    ```
 
 2. **Install dependencies**:
@@ -54,10 +72,10 @@ By submitting a Pull Request or patch for inclusion in AgentGuard, you agree tha
 
 3. **Verify build and tests**:
    ```bash
-   npm run compile
-   npm run build
-   npm test
-   npm run test:integration
+   npm run compile          # Validates TypeScript types (0 errors)
+   npm test                 # Executes all 180+ unit and benchmark tests
+   npm run build            # Bundles extension with esbuild
+   npm run package-extension # Packages production VSIX
    ```
 
 4. **Launch Extension in Debugger**:
@@ -69,11 +87,11 @@ By submitting a Pull Request or patch for inclusion in AgentGuard, you agree tha
 
 When submitting code changes, adhere to the following architectural rules:
 
-1. **Strict Offline-First Boundary**: Never introduce external network calls, remote dependencies, or telemetry.
+1. **Strict Offline-First Boundary**: Never introduce external network calls, remote API connections, or telemetry trackers. AgentGuard runs 100% locally.
 2. **Language Independence**: Keep `src/core/` and orchestrators strictly language-agnostic. Language-specific logic belongs in `src/languages/adapters/`.
 3. **Deterministic Resource Disposal**: All event listeners, timers, file watchers, and subscriptions must be registered with `DisposableStore` or added to extension subscriptions.
-4. **Strict TypeScript**: Do not use `any`. Always provide explicit typings and maintain compatibility with `strict: true` and `noUncheckedIndexedAccess: true`.
-5. **Zero Runtime Dependencies**: The core extension ships with zero production dependencies; keep bundling minimal and fast.
+4. **Strict TypeScript**: Avoid `any`. Provide explicit typings and maintain compatibility with `strict: true` and `noUncheckedIndexedAccess: true`.
+5. **Zero Runtime Dependencies**: The core extension ships bundled with esbuild and zero production npm dependencies; keep bundling minimal and fast.
 
 ---
 
@@ -89,21 +107,13 @@ To maintain clarity and protect users:
 
 ---
 
-## Open Source Core & Future Ecosystem
-
-The AgentGuard core extension is and will remain free, open source, and accessible to everyone under the Apache License 2.0.
-
-As an Apache-2.0 project, anyone (including community members, organizations, and the project maintainer) may use, modify, distribute, or incorporate the code into commercial or proprietary workflows, provided the conditions of Apache-2.0 are honored. The project maintainer may also independently develop distinct commercial offerings in the future (such as enterprise support, custom integrations, or separate commercial tooling) alongside the open-source core.
-
----
-
 ## Pull Request Checklist
 
 Before submitting a pull request, ensure:
 
 - [ ] `npm run compile` completes with zero TypeScript errors.
 - [ ] `npm run build` bundles the extension cleanly.
-- [ ] `npm test` passes all unit and integration tests.
-- [ ] New features or fixes include automated tests.
+- [ ] `npm test` passes all unit and benchmark tests.
+- [ ] New features or fixes include automated tests in `test/unit/`.
 - [ ] Documentation has been updated as appropriate.
-- [ ] Code adheres to the offline boundary (no remote requests or telemetry).
+- [ ] Code adheres strictly to the offline boundary (no remote requests or telemetry).

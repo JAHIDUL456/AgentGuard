@@ -6,6 +6,7 @@ import { ConfidenceLevel, Finding, FindingCategory, FindingSeverity } from '../.
 import { GitService } from '../../git/git-service';
 import { LanguageAdapterRegistry } from '../../languages/adapter-registry';
 import { ILanguageAdapter, StructuralNode } from '../../languages/types';
+import { DocumentContentReader } from '../../utils/document-content';
 import { isIgnoredPath } from '../../utils/path-utils';
 import { WorkspaceManager } from '../../workspace/workspace-manager';
 import { DiagnosticTracker } from '../diagnostics/diagnostic-tracker';
@@ -80,12 +81,11 @@ export class BlastRadiusEngine implements IAnalysisEngine {
 
       let currentContent: string;
       try {
-        const stat = await fs.promises.stat(changedUri.fsPath);
-        if (stat.size > BlastRadiusEngine.MAX_FILE_SIZE_BYTES) {
+        currentContent = await DocumentContentReader.readContent(changedUri);
+        if (currentContent.length > BlastRadiusEngine.MAX_FILE_SIZE_BYTES) {
           this._logger.debug(`Skipping large file > 2MB: ${changedUri.fsPath}`);
           continue;
         }
-        currentContent = await fs.promises.readFile(changedUri.fsPath, 'utf8');
       } catch {
         continue;
       }
@@ -100,14 +100,28 @@ export class BlastRadiusEngine implements IAnalysisEngine {
         continue;
       }
 
-      // Retrieve previous AST from cache or Git
+      // Retrieve previous baseline AST from cache, Git, or disk
       let previousNodes = this._previousAstCache.get(changedUri.fsPath);
       if (!previousNodes) {
         previousNodes = await this._retrievePreviousNodesFromGit(changedUri, adapter);
+        if (!previousNodes) {
+          try {
+            const diskContent = await fs.promises.readFile(changedUri.fsPath, 'utf8');
+            const res = await adapter.parseStructure(changedUri, diskContent);
+            previousNodes = res.nodes;
+          } catch {
+            // New untracked file without saved baseline
+          }
+        }
+        if (previousNodes && previousNodes.length > 0) {
+          this._previousAstCache.set(changedUri.fsPath, previousNodes);
+        }
       }
 
-      // Always update cache with currentNodes for the next cycle
-      this._previousAstCache.set(changedUri.fsPath, currentNodes);
+      // Only advance baseline when saved to disk or during wide scan (NOT during fast-local typing)
+      if (scope.level !== 'fast-local') {
+        this._previousAstCache.set(changedUri.fsPath, currentNodes);
+      }
 
       if (!previousNodes || previousNodes.length === 0) {
         // First observation of this file, no prior structural baseline to diff against

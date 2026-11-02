@@ -87,17 +87,36 @@ export class ChangeMonitor extends Disposable implements IChangeMonitor {
         if (event.contentChanges.length === 0) {
           return;
         }
-        this._handleCandidate(event.document.uri, 'modified', 'document');
+        this._handleCandidate(
+          event.document.uri,
+          'modified',
+          'document',
+          undefined,
+          event.document.version,
+          event.contentChanges
+        );
       })
     );
 
-    // 2. Saved documents
+    // 2. Opened documents
+    if (typeof vscode.workspace.onDidOpenTextDocument === 'function') {
+      this._register(
+        vscode.workspace.onDidOpenTextDocument(doc => {
+          if (!this._enabled || doc.uri.scheme !== 'file') {
+            return;
+          }
+          this._handleCandidate(doc.uri, 'modified', 'document', undefined, doc.version);
+        })
+      );
+    }
+
+    // 3. Saved documents
     this._register(
       vscode.workspace.onDidSaveTextDocument(doc => {
         if (!this._enabled || doc.uri.scheme !== 'file') {
           return;
         }
-        this._handleCandidate(doc.uri, 'modified', 'save');
+        this._handleCandidate(doc.uri, 'modified', 'save', undefined, doc.version);
       })
     );
 
@@ -215,7 +234,9 @@ export class ChangeMonitor extends Disposable implements IChangeMonitor {
     uri: vscode.Uri,
     kind: ChangeKind,
     source: EventSource,
-    oldUri?: vscode.Uri
+    oldUri?: vscode.Uri,
+    documentVersion?: number,
+    contentChanges?: readonly vscode.TextDocumentContentChangeEvent[]
   ): void {
     if (FileFilter.shouldIgnore(uri.fsPath)) {
       return;
@@ -231,6 +252,8 @@ export class ChangeMonitor extends Disposable implements IChangeMonitor {
       timestamp: Date.now(),
       source,
       oldUri,
+      documentVersion,
+      contentChanges,
     });
   }
 }

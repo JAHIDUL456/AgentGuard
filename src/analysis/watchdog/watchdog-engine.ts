@@ -5,6 +5,7 @@ import { ILogger } from '../../core/logger';
 import { Finding, FindingCategory, FindingSeverity } from '../../core/types';
 import { GitService } from '../../git/git-service';
 import { LanguageAdapterRegistry } from '../../languages/adapter-registry';
+import { DocumentContentReader } from '../../utils/document-content';
 import { isIgnoredPath } from '../../utils/path-utils';
 import { WorkspaceManager } from '../../workspace/workspace-manager';
 import { AnalysisScope, IAnalysisEngine } from '../types';
@@ -78,24 +79,36 @@ export class LogicWatchdogEngine implements IAnalysisEngine {
 
       let newContent: string;
       try {
-        const stat = await fs.promises.stat(changedUri.fsPath);
-        if (stat.size > LogicWatchdogEngine.MAX_FILE_SIZE_BYTES) {
+        newContent = await DocumentContentReader.readContent(changedUri);
+        if (newContent.length > LogicWatchdogEngine.MAX_FILE_SIZE_BYTES) {
           this._logger.debug(`Skipping large file > 2MB: ${changedUri.fsPath}`);
           continue;
         }
-        newContent = await fs.promises.readFile(changedUri.fsPath, 'utf8');
       } catch {
         continue;
       }
 
-      // Retrieve previous content
+      // Retrieve previous/baseline content
       let oldContent = this._previousContentCache.get(changedUri.fsPath);
       if (oldContent === undefined) {
-        oldContent = (await this._gitService.getFileAtHead(changedUri, token)) ?? '';
+        const gitHead = await this._gitService.getFileAtHead(changedUri, token);
+        if (gitHead !== undefined) {
+          oldContent = gitHead;
+        } else {
+          // Fallback to saved disk content as baseline
+          try {
+            oldContent = await fs.promises.readFile(changedUri.fsPath, 'utf8');
+          } catch {
+            oldContent = '';
+          }
+        }
+        this._previousContentCache.set(changedUri.fsPath, oldContent);
       }
 
-      // Update cache with new content for next analysis cycle
-      this._previousContentCache.set(changedUri.fsPath, newContent);
+      // Only advance baseline when saved to disk or during wide scan (NOT during fast-local typing)
+      if (scope.level !== 'fast-local') {
+        this._previousContentCache.set(changedUri.fsPath, newContent);
+      }
 
       // Fast path: if content is unchanged, skip AST/rule processing
       if (oldContent === newContent) {

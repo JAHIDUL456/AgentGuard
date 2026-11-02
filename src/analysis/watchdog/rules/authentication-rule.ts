@@ -23,9 +23,9 @@ export class AuthenticationRule extends BaseWatchdogRule {
       equivalentTerms: ['jwt.verify', 'verifyToken', 'validateToken', 'authenticateToken', 'checkAuth', 'authMiddleware', 'requireAuth'],
     },
     {
-      regex: /\b(?:passport\.authenticate|authMiddleware|requireAuth|ensureAuthenticated|isAuthenticated|checkAuth)\b/i,
+      regex: /\b(?:passport\.authenticate|authMiddleware|requireAuth|ensureAuthenticated|isAuthenticated|checkAuth)\b|\bmiddleware\s*\(\s*['"][^'"]*auth[^'"]*['"]\s*\)/i,
       label: 'Authentication middleware or guard',
-      equivalentTerms: ['passport.authenticate', 'authMiddleware', 'requireAuth', 'ensureAuthenticated', 'isAuthenticated', 'checkAuth', 'AuthGuard', 'validateToken', 'verifyToken'],
+      equivalentTerms: ['passport.authenticate', 'authMiddleware', 'requireAuth', 'ensureAuthenticated', 'isAuthenticated', 'checkAuth', 'AuthGuard', 'validateToken', 'verifyToken', 'middleware'],
     },
     {
       regex: /@(?:login_required|jwt_required|auth_required|UseGuards\s*\(\s*AuthGuard\s*\)|PreAuthorize|Authorize)\b/i,

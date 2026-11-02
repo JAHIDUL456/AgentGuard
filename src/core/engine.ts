@@ -140,17 +140,19 @@ export class AgentGuardEngine extends Disposable {
       });
     }
 
-    const previousState = this._state;
-    this._setState('analyzing');
-    this._logger.info(`Starting codebase safety scan (gen ${scanGeneration})...`);
+    const roots = this._workspaceManager.getRoots();
+    const scope: AnalysisScope = targetScope ?? {
+      workspaceRoots: roots,
+      level: 'wider',
+    };
+
+    const isWiderScan = scope.level === 'wider';
+    if (isWiderScan) {
+      this._setState('analyzing');
+    }
+    this._logger.info(`Starting codebase safety scan (gen ${scanGeneration}, level: ${scope.level ?? 'wider'})...`);
 
     try {
-      const roots = this._workspaceManager.getRoots();
-      const scope: AnalysisScope = targetScope ?? {
-        workspaceRoots: roots,
-        level: 'wider',
-      };
-
       // If Git is available, refresh Git statuses for roots
       if (this._gitAvailable && this._gitRepoCount > 0) {
         await this._gitService.getAllStatuses(tokenSource.token);
@@ -205,7 +207,7 @@ export class AgentGuardEngine extends Disposable {
         this._activeScanTokenSource.dispose();
         this._activeScanTokenSource = undefined;
       }
-      if (!this._disposables.isDisposed) {
+      if (isWiderScan && !this._disposables.isDisposed) {
         this._setState('ready');
       }
     }

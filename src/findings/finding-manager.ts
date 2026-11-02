@@ -100,9 +100,11 @@ export class FindingManager extends Disposable implements IFindingManager {
       findings.map(f => this._computeStableIdentity(f))
     );
 
+    let hasResolvedChange = false;
     for (const prev of previousOnTarget) {
       const prevKey = this._computeStableIdentity(prev);
       if (!newFindingKeys.has(prevKey)) {
+        hasResolvedChange = true;
         this._resolvedHistory.push({
           ...prev,
           status: 'resolved',
@@ -117,7 +119,26 @@ export class FindingManager extends Disposable implements IFindingManager {
     this._logger.debug(
       `Engine '${sourceEngine}' scoped reconcile for ${targetUris.length} file(s): ${engineMap.size} total active`
     );
-    this._onDidChangeFindings.fire(this.getAll());
+
+    const hasChanged =
+      hasResolvedChange ||
+      previousOnTarget.length !== findings.length ||
+      previousOnTarget.some(p => {
+        const matching = engineMap.get(p.id);
+        if (!matching) {
+          return true;
+        }
+        return (
+          matching.severity !== p.severity ||
+          matching.status !== p.status ||
+          matching.location.range?.start.line !== p.location.range?.start.line ||
+          matching.title !== p.title
+        );
+      });
+
+    if (hasChanged) {
+      this._onDidChangeFindings.fire(this.getAll());
+    }
   }
 
   /**
