@@ -4,7 +4,7 @@
 
 ### Real-Time Codebase Safety & AI Code Review Shield for Visual Studio Code
 
-[![Version](https://img.shields.io/badge/version-2.0.0-blue.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-2.0.1-blue.svg)](CHANGELOG.md)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 [![VS Code Engine](https://img.shields.io/badge/VS%20Code-%5E1.90.0-blueviolet.svg)](https://marketplace.visualstudio.com/items?itemName=swe-jahid-agentguard.agentguard)
 [![Privacy: 100% Offline](https://img.shields.io/badge/Privacy-100%25%20Offline-success.svg)](SECURITY.md)

@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.0.1] - 2026-11-02
+
+### Highlights
+- **Ultra-Responsive Real-Time Monitoring**: AgentGuard now detects and analyzes code changes live in memory as you type (50ms adaptive debounce), eliminating the need to save files first.
+- **Seamless Sidebar & UI Polish**: Replaced full sidebar webview reloads with `postMessage` DOM delta patching—no more scroll jumping or blinking while typing.
+- **Zero Status Flicker**: Eliminated continuous "Checking changes..." status flipping during fast local typing checks.
+- **Marketplace Metadata & Growth Enhancements**: Expanded category classification, 25 high-intent keywords, comprehensive comparison table, and interactive demo walkthrough.
+
+### Added
+- **Live In-Memory Buffer Detection (`DocumentContentReader`)**:
+  - Prioritizes active unsaved editor buffers over disk contents across all analysis engines (Blast Radius, Watchdog, Scope Analyzer).
+  - Keeps findings accurate and responsive during continuous typing sessions.
+- **Adaptive Typing Debounce**:
+  - Reduced typing debounce to 50ms with a 250ms burst timeout in `ChangeProcessor`.
+- **Targeted Webview Delta Updates**:
+  - Sidebar webview now applies updates incrementally via `postMessage`, preserving scroll position, hover states, and collapsed categories across keystrokes.
+
+### Fixed
+- **Watchdog & Blast Radius Baseline Caching**:
+  - Fixed baseline cache advancing prematurely on every keystroke, ensuring critical logic deletion warnings (e.g. removed `@login_required`, deleted `await`) remain visible while typing until genuinely fixed.
+- **Continuous Status Animation Loop**:
+  - Isolated background typing checks from global UI status flips, preventing distracting header spinner flickering.
+- **Sidebar Clutter**:
+  - Removed redundant Pause and Refresh header buttons in favor of clean, automatic state synchronization.
+
+---
+
 ## [2.0.0] - 2026-11-02
 
 ### Highlights

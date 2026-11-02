@@ -2,7 +2,7 @@
   "name": "agentguard",
   "displayName": "AgentGuard — Real-Time Codebase Safety & AI Code Review",
   "description": "Real-time codebase safety for developers and AI coding agents. Catches breaking changes in untouched files, silent regressions, and deleted security checks as you type. 100% offline.",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "publisher": "swe-jahid-agentguard",
   "author": "Md. Jahidul Islam",
   "license": "Apache-2.0",
