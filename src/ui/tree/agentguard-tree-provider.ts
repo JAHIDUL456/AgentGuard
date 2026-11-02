@@ -1,6 +1,5 @@
 import * as vscode from 'vscode';
 import { AgentGuardEngine } from '../../core/engine';
-import { Finding } from '../../core/types';
 import { FindingManager } from '../../findings/finding-manager';
 import { LanguageAdapterRegistry } from '../../languages/adapter-registry';
 import { WorkspaceManager } from '../../workspace/workspace-manager';
@@ -48,7 +47,8 @@ export class AgentGuardTreeProvider
           new StatusItem(
             'AgentGuard',
             'Waiting for workspace',
-            new vscode.ThemeIcon('folder-opened')
+            new vscode.ThemeIcon('folder-opened'),
+            'Open a folder to start automated codebase safety monitoring'
           ),
           new InfoTreeItem(
             'No Workspace Open',
@@ -87,7 +87,10 @@ export class AgentGuardTreeProvider
         ? `Ready (Git • ${gitRepoCount} repo${gitRepoCount === 1 ? '' : 's'})`
         : `Ready (Fallback)`;
 
-    const statusDesc = allFindings.length === 0 ? `All Clear (${modeDesc})` : `Issues Detected (${modeDesc})`;
+    const statusDesc =
+      allFindings.length === 0
+        ? `All Clear • ${modeDesc}`
+        : `${critical.length} Critical, ${warnings.length} Warnings • ${modeDesc}`;
 
     const statusSection = new SectionTreeItem(
       'STATUS',
@@ -95,65 +98,71 @@ export class AgentGuardTreeProvider
       undefined,
       allFindings.length === 0
         ? new vscode.ThemeIcon('shield', new vscode.ThemeColor('charts.green'))
-        : new vscode.ThemeIcon('shield-x', new vscode.ThemeColor('errorForeground'))
+        : new vscode.ThemeIcon('shield-x', new vscode.ThemeColor('errorForeground')),
+      vscode.TreeItemCollapsibleState.Expanded
     );
     statusSection.description = statusDesc;
     sections.push(statusSection);
 
-    // 2. CRITICAL Section (Hidden if 0)
+    // 2. CRITICAL Section (Visible when critical findings exist)
     if (critical.length > 0) {
       sections.push(
         new SectionTreeItem(
           'CRITICAL',
           'critical',
           critical.length,
-          new vscode.ThemeIcon('error', new vscode.ThemeColor('errorForeground'))
+          new vscode.ThemeIcon('error', new vscode.ThemeColor('errorForeground')),
+          vscode.TreeItemCollapsibleState.Expanded
         )
       );
     }
 
-    // 3. WARNINGS Section (Hidden if 0)
+    // 3. WARNINGS Section (Visible when warnings exist)
     if (warnings.length > 0) {
       sections.push(
         new SectionTreeItem(
           'WARNINGS',
           'warnings',
           warnings.length,
-          new vscode.ThemeIcon('warning', new vscode.ThemeColor('problemsWarningIcon.foreground'))
+          new vscode.ThemeIcon('warning', new vscode.ThemeColor('problemsWarningIcon.foreground')),
+          vscode.TreeItemCollapsibleState.Expanded
         )
       );
     }
 
-    // 4. REVIEW Section (Hidden if 0)
+    // 4. REVIEW Section (Collapsed by default to avoid visual clutter)
     if (review.length > 0) {
       sections.push(
         new SectionTreeItem(
           'REVIEW',
           'review',
           review.length,
-          new vscode.ThemeIcon('info', new vscode.ThemeColor('problemsInfoIcon.foreground'))
+          new vscode.ThemeIcon('info', new vscode.ThemeColor('problemsInfoIcon.foreground')),
+          vscode.TreeItemCollapsibleState.Collapsed
         )
       );
     }
 
-    // 5. LANGUAGES Section (Always shown)
+    // 5. LANGUAGES Section (Collapsed by default for a clean, minimal interface)
     const adapters = this._languageRegistry?.getAdapters() ?? [];
     sections.push(
       new SectionTreeItem(
         'LANGUAGES',
         'languages',
         adapters.length > 0 ? adapters.length : undefined,
-        new vscode.ThemeIcon('code')
+        new vscode.ThemeIcon('file-code'),
+        vscode.TreeItemCollapsibleState.Collapsed
       )
     );
 
-    // 6. RECENT ACTIVITY Section (Always shown)
+    // 6. RECENT ACTIVITY Section (Collapsed by default)
     sections.push(
       new SectionTreeItem(
         'RECENT ACTIVITY',
         'recent-activity',
         undefined,
-        new vscode.ThemeIcon('history')
+        new vscode.ThemeIcon('history'),
+        vscode.TreeItemCollapsibleState.Collapsed
       )
     );
 
@@ -182,8 +191,8 @@ export class AgentGuardTreeProvider
           items.push(
             new StatusItem(
               'All Clear',
-              'No active safety issues detected',
-              new vscode.ThemeIcon('check', new vscode.ThemeColor('charts.green')),
+              'Zero safety risks detected',
+              new vscode.ThemeIcon('pass-filled', new vscode.ThemeColor('charts.green')),
               'All analyzed code changes comply with security, logic, and contract safeguards.'
             )
           );
@@ -204,7 +213,8 @@ export class AgentGuardTreeProvider
             new StatusItem(
               'Git Integration',
               `Active (${this._engine.gitRepoCount} repo${this._engine.gitRepoCount === 1 ? '' : 's'})`,
-              new vscode.ThemeIcon('git-branch')
+              new vscode.ThemeIcon('git-branch'),
+              'Live Git diff inspection and repository status tracking.'
             )
           );
         } else {
@@ -212,7 +222,8 @@ export class AgentGuardTreeProvider
             new StatusItem(
               'Monitoring Mode',
               'Fallback file watcher active',
-              new vscode.ThemeIcon('eye')
+              new vscode.ThemeIcon('eye'),
+              'Filesystem watcher and document change tracking active.'
             )
           );
         }
@@ -252,7 +263,8 @@ export class AgentGuardTreeProvider
           new ActivityTreeItem(
             'Last Scan',
             lastScanStr,
-            new vscode.ThemeIcon('clock')
+            new vscode.ThemeIcon('clock'),
+            `Timestamp of most recent automated analysis cycle: ${lastScanStr}`
           )
         );
 
@@ -260,7 +272,8 @@ export class AgentGuardTreeProvider
           new ActivityTreeItem(
             'Active Roots',
             `${status.activeWorkspaceFolders} folder(s)`,
-            new vscode.ThemeIcon('root-folder')
+            new vscode.ThemeIcon('root-folder'),
+            `Number of active workspace folders monitored: ${status.activeWorkspaceFolders}`
           )
         );
 
@@ -268,7 +281,8 @@ export class AgentGuardTreeProvider
           new ActivityTreeItem(
             'Engine Status',
             status.state.toUpperCase(),
-            new vscode.ThemeIcon('pulse')
+            new vscode.ThemeIcon('pulse'),
+            `Current state of AgentGuard orchestration engine: ${status.state}`
           )
         );
 

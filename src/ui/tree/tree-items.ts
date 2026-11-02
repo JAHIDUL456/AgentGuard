@@ -13,9 +13,10 @@ export class SectionTreeItem extends vscode.TreeItem {
       | 'languages'
       | 'recent-activity',
     count?: number,
-    icon?: vscode.ThemeIcon
+    icon?: vscode.ThemeIcon,
+    collapsibleState: vscode.TreeItemCollapsibleState = vscode.TreeItemCollapsibleState.Expanded
   ) {
-    super(label, vscode.TreeItemCollapsibleState.Expanded);
+    super(label, collapsibleState);
     if (count !== undefined) {
       this.description = `(${count})`;
     }
@@ -48,23 +49,37 @@ export class FindingTreeItem extends vscode.TreeItem {
         ? `:${finding.location.range.start.line + 1}`
         : '';
 
-    this.description = `[${finding.confidence.toUpperCase()}] ${finding.location.filePath}${lineSuffix}`;
+    // Compact, responsive path formatting for narrow sidebars
+    const filePath = finding.location.filePath;
+    const pathSegments = filePath.split(/[/\\]/);
+    const compactLocation =
+      pathSegments.length > 2
+        ? `${pathSegments.slice(-2).join('/')}${lineSuffix}`
+        : `${filePath}${lineSuffix}`;
+
+    this.description = compactLocation;
     this.iconPath = getSeverityIcon(finding.severity);
 
+    // Clean, structured Markdown tooltip
     const md = new vscode.MarkdownString();
     md.isTrusted = true;
-    md.appendMarkdown(
-      `### [${finding.severity.toUpperCase()}] [${finding.confidence.toUpperCase()} CONFIDENCE] ${finding.title}\n\n`
-    );
+    md.supportHtml = true;
+
+    const severityUpper = finding.severity.toUpperCase();
+    const confidenceUpper = finding.confidence.toUpperCase();
+
+    md.appendMarkdown(`### ${finding.title}\n\n`);
     md.appendMarkdown(`**File**: \`${finding.location.filePath}${lineSuffix}\`\n\n`);
-    md.appendMarkdown(`**Explanation**: ${finding.explanation}\n\n`);
-    md.appendMarkdown(`**Evidence**: \`${finding.evidence}\`\n\n`);
-    md.appendMarkdown(`*Source Engine: ${finding.sourceEngine} • Category: ${finding.category}*`);
+    md.appendMarkdown(`**Severity**: \`${severityUpper}\` • **Confidence**: \`${confidenceUpper}\`\n\n`);
+    md.appendMarkdown(`---\n\n`);
+    md.appendMarkdown(`**Explanation**:\n${finding.explanation}\n\n`);
+    md.appendMarkdown(`**Evidence**:\n\`\`\`\n${finding.evidence}\n\`\`\`\n\n`);
+    md.appendMarkdown(`*Category: ${finding.category} • Engine: ${finding.sourceEngine}*`);
 
     this.tooltip = md;
-    this.contextValue = 'agentguard.finding';
+    this.contextValue = `agentguard.finding.${finding.severity}`;
 
-    // Clickable navigation command: Opens the file and navigates directly to the line
+    // Clickable navigation command: Opens the file and navigates directly to line selection
     if (finding.location.range) {
       this.command = {
         command: 'vscode.open',
@@ -88,16 +103,28 @@ export class FindingTreeItem extends vscode.TreeItem {
 
 export class LanguageTreeItem extends vscode.TreeItem {
   constructor(adapter: ILanguageAdapter) {
-    const levelName = formatCapabilityLevel(adapter.capabilityLevel);
     super(adapter.displayName, vscode.TreeItemCollapsibleState.None);
-    this.description = `Level ${adapter.capabilityLevel}: ${levelName}`;
+    const levelName = formatCapabilityLevel(adapter.capabilityLevel);
+    const extStr = adapter.fileExtensions.slice(0, 3).join(', ');
+    this.description = `Level ${adapter.capabilityLevel} (${extStr})`;
     this.iconPath = new vscode.ThemeIcon('file-code');
-    this.tooltip = new vscode.MarkdownString(
-      `**${adapter.displayName} Adapter**\n\n` +
-      `- **Capability Level**: Level ${adapter.capabilityLevel} (${levelName})\n` +
-      `- **Extensions**: \`${adapter.fileExtensions.join(', ')}\`\n` +
-      `- **Capabilities**: \`${adapter.capabilities.join(', ')}\``
-    );
+
+    const md = new vscode.MarkdownString();
+    md.isTrusted = true;
+    md.appendMarkdown(`**${adapter.displayName} Adapter**\n\n`);
+    md.appendMarkdown(`- **Capability Level**: Level ${adapter.capabilityLevel} (${levelName})\n`);
+    md.appendMarkdown(`- **Extensions**: \`${adapter.fileExtensions.join(', ')}\`\n`);
+    md.appendMarkdown(`- **Capabilities**: \`${adapter.capabilities.join(', ')}\`\n`);
+    if (adapter.projectManifests.length > 0) {
+      md.appendMarkdown(`- **Manifests**: \`${adapter.projectManifests.join(', ')}\`\n`);
+    }
+    if (adapter.knownLimitations.length > 0) {
+      md.appendMarkdown(`\n**Declared Limitations**:\n`);
+      for (const lim of adapter.knownLimitations) {
+        md.appendMarkdown(`- ${lim}\n`);
+      }
+    }
+    this.tooltip = md;
     this.contextValue = 'agentguard.language';
   }
 }

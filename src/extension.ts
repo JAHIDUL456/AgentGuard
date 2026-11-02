@@ -126,6 +126,43 @@ export async function activate(
   });
   context.subscriptions.push(treeView);
 
+  const updateTreeViewStatus = () => {
+    if (!workspaceManager.hasWorkspace()) {
+      treeView.description = 'Waiting';
+      treeView.badge = undefined;
+      return;
+    }
+
+    const allFindings = findingManager.getAll();
+    const critical = allFindings.filter(f => f.severity === 'error');
+    const warnings = allFindings.filter(f => f.severity === 'warning');
+    const urgentCount = critical.length + warnings.length;
+
+    if (urgentCount > 0) {
+      treeView.badge = {
+        value: urgentCount,
+        tooltip: `${critical.length} Critical, ${warnings.length} Warning issue(s) detected`,
+      };
+      treeView.description = `${urgentCount} Issue${urgentCount === 1 ? '' : 's'}`;
+    } else if (allFindings.length > 0) {
+      treeView.badge = {
+        value: allFindings.length,
+        tooltip: `${allFindings.length} Review item(s)`,
+      };
+      treeView.description = `${allFindings.length} Review`;
+    } else {
+      treeView.badge = undefined;
+      treeView.description = 'All Clear';
+    }
+  };
+
+  context.subscriptions.push(
+    findingManager.onDidChangeFindings(updateTreeViewStatus),
+    engine.onDidChangeState(updateTreeViewStatus),
+    workspaceManager.onDidChangeRoots(updateTreeViewStatus)
+  );
+  updateTreeViewStatus();
+
   const statusBarManager = new StatusBarManager(
     engine,
     workspaceManager,

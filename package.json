@@ -67,7 +67,7 @@
       {
         "command": "agentguard.generateReport",
         "title": "AgentGuard: Generate Safety Report",
-        "icon": "$(report)"
+        "icon": "$(file-text)"
       },
       {
         "command": "agentguard.clearFindings",
@@ -96,6 +96,11 @@
           "command": "agentguard.showOutput",
           "when": "view == agentguard.findingsView",
           "group": "navigation@3"
+        },
+        {
+          "command": "agentguard.clearFindings",
+          "when": "view == agentguard.findingsView",
+          "group": "navigation@4"
         }
       ]
     },
